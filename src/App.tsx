@@ -72,8 +72,6 @@ const portalNav: Record<Role, NavItem[]> = {
     { label: "Dashboard", icon: "grid" },
     { label: "Create Booking", icon: "plus" },
     { label: "All Bookings", icon: "calendar" },
-    { label: "Route Planning", icon: "location" },
-    { label: "Live Monitoring", icon: "route" },
     { label: "Manage Vans", icon: "bus" },
     { label: "Manage Drivers", icon: "user" },
     { label: "Manage Students", icon: "users" },
@@ -933,8 +931,6 @@ export default function App() {
       "my-bookings": "My Bookings",
       "all-bookings": "All Bookings",
       "booking-details": "Booking Details",
-      "route-planning": "Route Planning",
-      "live-monitoring": "Live Monitoring",
       "manage-vans": "Manage Vans",
       "manage-drivers": "Manage Drivers",
       "manage-students": "Manage Students",
@@ -1010,11 +1006,9 @@ export default function App() {
   const page = useMemo(() => {
     if (role === "admin") {
       if (active === "Dashboard") return <StaffDashboard role={role} fullName={fullName} setActive={setActive} onDetails={openBookingDetails} />;
-      if (active === "Create Booking") return <CreateBooking onDone={() => setActive("All Bookings")} openRoute={() => setActive("Route Planning")} />;
+      if (active === "Create Booking") return <CreateBooking onDone={() => setActive("All Bookings")} openRoute={() => setActive("All Bookings")} />;
       if (active === "All Bookings") return <BookingsPage mine={false} onDetails={openBookingDetails} />;
       if (active === "Booking Details") return <BookingDetails role={role} bookingId={selectedBookingId} back={() => setActive(role === "admin" ? "All Bookings" : "My Bookings")} onUpdateBooking={() => setActive("Create Booking")} />;
-      if (active === "Route Planning") return <RoutePlanning />;
-      if (active === "Live Monitoring") return <RoutePlanning monitor />;
       if (active === "Manage Vans") return <FleetPage />;
       if (active === "Manage Users") return <FleetPage users />;
       if (active === "Manage Drivers") return <ManagementPage section="drivers" role={role} />;
