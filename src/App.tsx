@@ -111,6 +111,7 @@ const students = [
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5075/api";
 const DRIVER_JOURNEY_STORAGE_KEY = "vision-fleet:selected-driver-journey";
+const PRESENTATION_DEMO_REQUEST_ID = "20000000-0000-0000-0000-000000003001";
 const DEMO_ADMIN_ID = "00000000-0000-0000-0000-000000000001";
 
 const presetLocations = [
@@ -885,13 +886,14 @@ function googleMapsUrl(address: string, navigation = false) {
   return `https://www.google.com/maps/${action}/?api=1&${parameter}=${encodeURIComponent(address)}`;
 }
 
-function DriverRoutePage({ journey, loading, error, savingAttendanceId, actionBusy, onStart, onUpdateAttendance, onMarkArrival }: {
+function DriverRoutePage({ journey, loading, error, savingAttendanceId, actionBusy, onStart, onResetDemo, onUpdateAttendance, onMarkArrival }: {
   journey: DriverJourney | null;
   loading: boolean;
   error: string;
   savingAttendanceId: string | null;
   actionBusy: boolean;
   onStart: (routeId: string) => void;
+  onResetDemo: (routeId: string) => void;
   onUpdateAttendance: (routeId: string, attendanceId: string, status: string) => void;
   onMarkArrival: (routeId: string, stopId: string) => void;
 }) {
@@ -903,7 +905,7 @@ function DriverRoutePage({ journey, loading, error, savingAttendanceId, actionBu
   if (!nextStop) return <div className="empty-state"><h2>No route stops found</h2><p>{journey.setupWarning ?? "Ask an administrator to review the route saved with this booking."}</p></div>;
   const pendingPassengers = nextStop.passengers.filter((passenger) => passenger.status === "pending");
   return <>
-    <PageTitle eyebrow={`ASSIGNED JOURNEY · ${journey.id.slice(0, 8).toUpperCase()}`} title={journey.title} subtitle={`${formatApiDate(journey.journeyDate)} · ${journey.vanRegistration ?? "Van not assigned"} · Departure ${formatApiTime(journey.plannedStartTime)}`} action={<Status>{driverJourneyStatus(journey.status)}</Status>} />
+    <PageTitle eyebrow={`ASSIGNED JOURNEY · ${journey.id.slice(0, 8).toUpperCase()}`} title={journey.title} subtitle={`${formatApiDate(journey.journeyDate)} · ${journey.vanRegistration ?? "Van not assigned"} · Departure ${formatApiTime(journey.plannedStartTime)}`} action={<div className="driver-page-title-actions">{journey.requestId === PRESENTATION_DEMO_REQUEST_ID && <button type="button" className="secondary-button" disabled={actionBusy} onClick={() => onResetDemo(journey.id)}>{actionBusy ? "Resetting sample..." : "Reset demo journey"}</button>}<Status>{driverJourneyStatus(journey.status)}</Status></div>} />
     {error && <p className="form-message error" role="alert">{error}</p>}
     <div className="driver-progress-card"><div><span>ROUTE PROGRESS</span><strong>{progress.completed} of {progress.total} stops completed</strong></div><div className="progress-track"><i style={{ width: `${progress.percent}%` }} /></div><b>{progress.percent}%</b></div>
     <div className="route-planning-grid">
@@ -949,13 +951,19 @@ function DriverAssignedJourneys({ journeys, loading, error, onSelect, onRefresh 
   </>;
 }
 
-function DriverJourneyProgress({ journey, loading, error }: { journey: DriverJourney | null; loading: boolean; error: string }) {
+function DriverJourneyProgress({ journey, loading, error, actionBusy, onResetDemo }: {
+  journey: DriverJourney | null;
+  loading: boolean;
+  error: string;
+  actionBusy: boolean;
+  onResetDemo: (routeId: string) => void;
+}) {
   if (loading) return <div className="empty-state"><p>Loading journey progress from the database...</p></div>;
   if (!journey) return <div className="empty-state"><h2>{error ? "Could not load journey progress" : "No journey assigned"}</h2><p>{error || "Route progress will appear after an administrator assigns an approved booking to you."}</p></div>;
   const progress = getDriverProgress(journey);
   const nextStopIndex = journey.stops.findIndex((stop) => !isDriverStopComplete(stop));
   return <>
-    <PageTitle eyebrow={`ASSIGNED JOURNEY · ${journey.id.slice(0, 8).toUpperCase()}`} title="Journey progress" subtitle={`${journey.title} · ${formatApiDate(journey.journeyDate)}`} action={<Status>{driverJourneyStatus(journey.status)}</Status>} />
+    <PageTitle eyebrow={`ASSIGNED JOURNEY · ${journey.id.slice(0, 8).toUpperCase()}`} title="Journey progress" subtitle={`${journey.title} · ${formatApiDate(journey.journeyDate)}`} action={<div className="driver-page-title-actions">{journey.requestId === PRESENTATION_DEMO_REQUEST_ID && <button type="button" className="secondary-button" disabled={actionBusy} onClick={() => onResetDemo(journey.id)}>{actionBusy ? "Resetting sample..." : "Reset demo journey"}</button>}<Status>{driverJourneyStatus(journey.status)}</Status></div>} />
     {error && <p className="form-message error" role="alert">{error}</p>}
     <section className="panel journey-progress-panel">
       <div className="driver-progress-card"><div><span>ROUTE PROGRESS</span><strong>{progress.completed} of {progress.total} stops complete</strong></div><div className="progress-track"><i style={{ width: `${progress.percent}%` }} /></div><b>{progress.percent}%</b></div>
@@ -1045,7 +1053,7 @@ function AttendancePage({ journey, loading, error, savingAttendanceId, onUpdateA
   </>;
 }
 
-function DriverDashboard({ fullName, journey, journeys, loading, error, setActive, onSelect, onRefresh }: {
+function DriverDashboard({ fullName, journey, journeys, loading, error, setActive, onSelect, onRefresh, onResetDemo, actionBusy }: {
   fullName: string;
   journey: DriverJourney | null;
   journeys: DriverJourney[];
@@ -1054,6 +1062,8 @@ function DriverDashboard({ fullName, journey, journeys, loading, error, setActiv
   setActive: (value: string) => void;
   onSelect: (journeyId: string) => void;
   onRefresh: () => void;
+  onResetDemo: (routeId: string) => void;
+  actionBusy: boolean;
 }) {
   const progress = journey ? getDriverProgress(journey) : null;
   const nextStopIndex = journey?.stops.findIndex((stop) => !isDriverStopComplete(stop)) ?? -1;
@@ -1062,7 +1072,7 @@ function DriverDashboard({ fullName, journey, journeys, loading, error, setActiv
   const pickedUp = passengers.filter((passenger) => passenger.status === "picked_up").length;
   const remaining = passengers.filter((passenger) => passenger.status === "pending").length;
   return <>
-    <PageTitle eyebrow="DRIVER PORTAL" title={`Good morning, ${fullName.split(" ")[0]}`} subtitle={journey && nextStop && nextStopIndex >= 0 ? `Your next stop is ${nextStop.address}, planned for ${formatApiTime(nextStop.plannedArrival)}.` : journey ? "Your assigned journey is complete." : "Your assigned bookings and route details appear here."} action={<button type="button" className="secondary-button" onClick={onRefresh}>Refresh</button>} />
+    <PageTitle eyebrow="DRIVER PORTAL" title={`Good morning, ${fullName.split(" ")[0]}`} subtitle={journey && nextStop && nextStopIndex >= 0 ? `Your next stop is ${nextStop.address}, planned for ${formatApiTime(nextStop.plannedArrival)}.` : journey ? "Your assigned journey is complete." : "Your assigned bookings and route details appear here."} action={<div className="driver-page-title-actions">{journey?.requestId === PRESENTATION_DEMO_REQUEST_ID && <button type="button" className="secondary-button" disabled={actionBusy} onClick={() => onResetDemo(journey.id)}>{actionBusy ? "Resetting sample..." : "Reset demo journey"}</button>}<button type="button" className="secondary-button" onClick={onRefresh}>Refresh</button></div>} />
     {error && <p className="form-message error" role="alert">{error}</p>}
     {loading
       ? <div className="empty-state"><p>Loading assigned journeys from the database...</p></div>
@@ -1299,6 +1309,19 @@ export default function App() {
       setDriverActionBusyId(null);
     }
   };
+  const resetPresentationDemoJourney = async (routeId: string) => {
+    setDriverDataError("");
+    setDriverActionBusyId(routeId);
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/journeys/assigned/${routeId}/reset-demo`, { method: "POST" });
+      if (!response.ok) throw new Error(await response.text() || "Could not reset the presentation demo journey.");
+      refreshDriverJourneys();
+    } catch (reason) {
+      setDriverDataError(reason instanceof Error ? reason.message : "Could not reset the presentation demo journey.");
+    } finally {
+      setDriverActionBusyId(null);
+    }
+  };
   const markDriverStopArrival = async (routeId: string, stopId: string) => {
     setDriverDataError("");
     setDriverActionBusyId(routeId);
@@ -1358,10 +1381,10 @@ export default function App() {
       if (active === "Manage Students") return <ManagementPage section="students" role={role} />;
     }
     if (role === "driver") {
-      if (active === "Dashboard") return <DriverDashboard fullName={fullName} journey={activeDriverJourney} journeys={driverJourneys} loading={driverJourneysLoading} error={driverDataError} setActive={setActive} onSelect={selectDriverJourney} onRefresh={refreshDriverJourneys} />;
+      if (active === "Dashboard") return <DriverDashboard fullName={fullName} journey={activeDriverJourney} journeys={driverJourneys} loading={driverJourneysLoading} error={driverDataError} setActive={setActive} onSelect={selectDriverJourney} onRefresh={refreshDriverJourneys} onResetDemo={resetPresentationDemoJourney} actionBusy={driverActionBusyId === activeDriverJourney?.id} />;
       if (active === "Assigned Journeys") return <DriverAssignedJourneys journeys={driverJourneys} loading={driverJourneysLoading} error={driverDataError} onSelect={selectDriverJourney} onRefresh={refreshDriverJourneys} />;
-      if (active === "Complete Route") return <DriverRoutePage journey={activeDriverJourney} loading={driverJourneysLoading} error={driverDataError} savingAttendanceId={driverSavingAttendanceId} actionBusy={driverActionBusyId === activeDriverJourney?.id} onStart={startDriverJourney} onUpdateAttendance={updateDriverAttendance} onMarkArrival={markDriverStopArrival} />;
-      if (active === "Journey Progress") return <DriverJourneyProgress journey={activeDriverJourney} loading={driverJourneysLoading} error={driverDataError} />;
+      if (active === "Complete Route") return <DriverRoutePage journey={activeDriverJourney} loading={driverJourneysLoading} error={driverDataError} savingAttendanceId={driverSavingAttendanceId} actionBusy={driverActionBusyId === activeDriverJourney?.id} onStart={startDriverJourney} onResetDemo={resetPresentationDemoJourney} onUpdateAttendance={updateDriverAttendance} onMarkArrival={markDriverStopArrival} />;
+      if (active === "Journey Progress") return <DriverJourneyProgress journey={activeDriverJourney} loading={driverJourneysLoading} error={driverDataError} actionBusy={driverActionBusyId === activeDriverJourney?.id} onResetDemo={resetPresentationDemoJourney} />;
       if (active === "Passenger List") return <DriverPassengerList journey={activeDriverJourney} loading={driverJourneysLoading} error={driverDataError} setActive={setActive} />;
       if (active === "Passenger Attendance") return <AttendancePage journey={activeDriverJourney} loading={driverJourneysLoading} error={driverDataError} savingAttendanceId={driverSavingAttendanceId} onUpdateAttendance={updateDriverAttendance} />;
     }

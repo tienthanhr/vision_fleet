@@ -12,6 +12,8 @@ namespace FleetBooking.Api.Controllers;
 [Authorize]
 public sealed class JourneyController(FleetDbContext database, ILogger<JourneyController> logger) : ControllerBase
 {
+    private static readonly Guid PresentationDemoRequestId = Guid.Parse("20000000-0000-0000-0000-000000003001");
+
     [HttpGet("assigned")]
     [Authorize(Roles = "driver")]
     public async Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssigned(CancellationToken cancellationToken)
@@ -311,6 +313,48 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
         if (route.Status == "completed") return Conflict("This journey has already been completed.");
 
         route.Status = "active";
+        await database.SaveChangesAsync(cancellationToken);
+        return Ok(new JourneyStatusResponse(route.Id, route.Status));
+    }
+
+    [HttpPost("assigned/{routeId:guid}/reset-demo")]
+    [Authorize(Roles = "driver")]
+    public async Task<ActionResult<JourneyStatusResponse>> ResetPresentationDemo(
+        Guid routeId,
+        CancellationToken cancellationToken)
+    {
+        var driverProfileId = await CurrentDriverProfileIdAsync(cancellationToken);
+        if (driverProfileId is null) return Forbid();
+        var route = await database.Routes
+            .Include(item => item.Stops)
+            .SingleOrDefaultAsync(
+                item => item.Id == routeId && item.DriverId == driverProfileId,
+                cancellationToken);
+        if (route is null || route.RequestId != PresentationDemoRequestId)
+            return NotFound("The presentation demo journey was not found.");
+
+        var request = await database.TransportRequests.FindAsync([route.RequestId], cancellationToken);
+        if (request is null
+            || request.JourneyType != JourneyType.StandardVanBooking
+            || request.Title != "Morning shuttle — Grafton loop")
+            return Conflict("Only the standard Grafton presentation demo can be reset.");
+        if (route.Stops.Count < 2)
+            return Conflict("The presentation demo route is incomplete and cannot be reset.");
+
+        foreach (var stop in route.Stops)
+            stop.ActualArrival = null;
+        var stopIds = route.Stops.Select(stop => stop.Id).ToArray();
+        var attendance = await database.PassengerAttendance
+            .Where(item => stopIds.Contains(item.RouteStopId))
+            .ToListAsync(cancellationToken);
+        foreach (var record in attendance)
+        {
+            record.Status = "pending";
+            record.RecordedAt = null;
+        }
+
+        route.Status = "assigned";
+        request.Status = RequestStatus.Approved;
         await database.SaveChangesAsync(cancellationToken);
         return Ok(new JourneyStatusResponse(route.Id, route.Status));
     }

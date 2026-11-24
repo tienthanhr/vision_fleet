@@ -375,6 +375,7 @@ footer > div { display: flex; flex-direction: column; gap: 5px; }footer strong {
 .next-eta strong { color:var(--portal-navy); font-size:16px; white-space:nowrap; }
 .driver-dashboard-actions,
 .driver-primary-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.driver-page-title-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .driver-dashboard-actions > button,
 .driver-dashboard-actions > a { flex:1 1 180px; }
 .driver-map-link { text-decoration:none; }
