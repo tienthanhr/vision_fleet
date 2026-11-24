@@ -121,6 +121,19 @@ const presetLocations = [
 
 const formatPresetLocation = (location: (typeof presetLocations)[number]) =>
   `${location.name} - ${location.address}`;
+
+const formatDateInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const futureBookingDate = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 2);
+  return formatDateInput(date);
+};
 function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   return fetch(input, { ...init, credentials: "include", headers: { ...(init.headers ?? {}) } });
 }
@@ -322,6 +335,9 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
   const [showPassengers, setShowPassengers] = useState(false);
   const [pickupLocation, setPickupLocation] = useState(formatPresetLocation(presetLocations[0]));
   const [destinationLocation, setDestinationLocation] = useState(formatPresetLocation(presetLocations[2]));
+  const minimumBookingDate = futureBookingDate();
+  const [departureDate, setDepartureDate] = useState(minimumBookingDate);
+  const [returnDate, setReturnDate] = useState(minimumBookingDate);
 
   useEffect(() => {
     Promise.all([
@@ -352,6 +368,17 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
       <form className="panel booking-form" onSubmit={async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError("");
+        const formData = new FormData(e.currentTarget);
+        const journeyDate = String(formData.get("journeyDate") ?? "");
+        const endDate = String(formData.get("returnDate") ?? "");
+        if (journeyDate < minimumBookingDate) {
+          setError(`Departure must be at least 48 hours in the future (from ${formatApiDate(minimumBookingDate)}).`);
+          return;
+        }
+        if (endDate && endDate < journeyDate) {
+          setError("The expected return date cannot be before the departure date.");
+          return;
+        }
         setSaving(true);
         const form = new FormData(e.currentTarget);
         const payload = {
@@ -386,11 +413,11 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
         <div className="form-grid">
           <label className="full">Journey purpose<input required name="title" placeholder="e.g. Networking lab visit" /></label>
           <label className="full">Vehicle preference (optional)<select name="vanId" defaultValue=""><option value="">No preference — assign after approval</option>{vans.map((van) => <option value={van.id} key={van.id}>{van.registrationNumber} · {van.name ?? "College van"} · {van.capacity} seats</option>)}</select></label>
-          <label>Departure date<input required name="journeyDate" type="date" defaultValue="2026-10-20" /></label>
+          <label>Departure date<input required name="journeyDate" type="date" min={minimumBookingDate} value={departureDate} onChange={(event) => { setDepartureDate(event.target.value); if (event.target.value > returnDate) setReturnDate(event.target.value); }} /></label>
           <label>Departure time<input required name="startTime" type="time" defaultValue="08:30" /></label>
           <label>Pickup location<select required name="pickup" value={pickupLocation} onChange={(event) => setPickupLocation(event.target.value)}><option value="">Select saved pickup location</option>{presetLocations.map((location) => <option value={formatPresetLocation(location)} key={location.name}>{formatPresetLocation(location)}</option>)}</select></label>
           <label>Destination<select required name="destination" value={destinationLocation} onChange={(event) => setDestinationLocation(event.target.value)}><option value="">Select saved destination</option>{presetLocations.map((location) => <option value={formatPresetLocation(location)} key={location.name}>{formatPresetLocation(location)}</option>)}</select></label>
-          <label>Expected return date<input type="date" defaultValue="2026-10-20" /></label>
+          <label>Expected return date<input type="date" name="returnDate" min={departureDate} value={returnDate} onChange={(event) => setReturnDate(event.target.value)} /></label>
           <label>Expected return time<input name="endTime" type="time" defaultValue="16:00" /></label>
         </div>
         <div className="form-divider" />
@@ -409,6 +436,8 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
 function StudentTransportForm({ back, openRoute }: { back: () => void; openRoute: () => void }) {
   const [selected, setSelected] = useState([0, 1, 2]);
   const [destination, setDestination] = useState(formatPresetLocation(presetLocations[0]));
+  const minimumBookingDate = futureBookingDate();
+  const [journeyDate, setJourneyDate] = useState(minimumBookingDate);
   const toggleStudent = (index: number) => setSelected(selected.includes(index) ? selected.filter((item) => item !== index) : [...selected, index]);
   return <>
     <button className="back-button" onClick={back}>← Change journey type</button>
@@ -425,7 +454,7 @@ function StudentTransportForm({ back, openRoute }: { back: () => void; openRoute
         <div className="form-section"><div className="section-number">3</div><div><h2>Journey details</h2><p>Times will be used to calculate a practical stop order.</p></div></div>
         <div className="form-grid">
           <label className="full">Transport direction<select defaultValue="morning"><option value="morning">Morning pickup</option><option>Return drop-off</option><option>One-way pickup</option><option>One-way drop-off</option><option>Return journey</option></select></label>
-          <label>Journey date<input type="date" defaultValue="2025-06-24" /></label>
+          <label>Journey date<input type="date" min={minimumBookingDate} value={journeyDate} onChange={(event) => setJourneyDate(event.target.value)} /></label>
           <label>Required arrival time<input type="time" defaultValue="08:20" /></label>
           <label>Planned first pickup<input type="time" defaultValue="07:30" /></label>
           <label>Destination<select value={destination} onChange={(event) => setDestination(event.target.value)}>{presetLocations.map((location) => <option value={formatPresetLocation(location)} key={location.name}>{formatPresetLocation(location)}</option>)}</select></label>

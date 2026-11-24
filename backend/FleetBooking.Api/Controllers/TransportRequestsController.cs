@@ -87,6 +87,17 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
         CreateTransportRequest request,
         CancellationToken cancellationToken)
     {
+        var journeyDateTime = request.JourneyDate.ToDateTime(request.PlannedStartTime);
+        var minimumNotice = DateTimeOffset.UtcNow.AddHours(48);
+        if (journeyDateTime.ToUniversalTime() < minimumNotice.UtcDateTime)
+            return BadRequest("Departure must be at least 48 hours in the future.");
+        if (request.PlannedEndTime is TimeOnly endTime)
+        {
+            var endDateTime = request.JourneyDate.ToDateTime(endTime);
+            if (endDateTime < journeyDateTime)
+                return BadRequest("The expected return time cannot be before the departure time.");
+        }
+
         // Always attribute a new booking to the signed-in user; ignore any id sent by the client.
         var createdById = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value is string callerId && Guid.TryParse(callerId, out var parsedCaller)
             ? parsedCaller
