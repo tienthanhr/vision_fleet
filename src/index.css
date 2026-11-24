@@ -224,7 +224,15 @@ footer > div { display: flex; flex-direction: column; gap: 5px; }footer strong {
 
 /* Keep portal layout rules last so the legacy prototype rules cannot override them. */
 .app-shell { display:flex; width:100%; min-height:100vh; background:var(--portal-page); overflow-x:hidden; }
-.sidebar { position:fixed; inset:0 auto 0 0; width:260px; height:100vh; padding:18px 14px; display:block; overflow-y:auto; }
+.sidebar { position:fixed; inset:0 auto 0 0; width:260px; height:100vh; padding:18px 14px; display:flex; flex-direction:column; overflow:hidden; }
+.sidebar-head { flex:0 0 auto; padding:0 8px 10px; }
+.portal-tag { flex:0 0 auto; margin-bottom:10px; }
+.sidebar nav { flex:1 1 auto; min-height:0; display:grid; align-content:start; gap:2px; overflow-y:auto; padding-right:2px; scrollbar-width:thin; }
+.sidebar nav .nav-label { margin-bottom:4px; }
+.sidebar nav .nav-item { min-height:36px; padding:6px 10px; }
+.sidebar-foot { flex:0 0 auto; margin-top:8px; padding-top:8px; border-top:1px solid var(--portal-line); }
+.sidebar-foot .nav-item { min-height:36px; padding:6px 10px; }
+.sidebar-foot .privacy { padding:10px 8px 0; font-size:10px; }
 .main-shell { width:calc(100% - 260px); max-width:calc(100% - 260px); min-height:100vh; min-width:0; margin-left:260px; display:flex; flex-direction:column; overflow:hidden; }
 .sidebar-head { display:flex; }.sidebar-close { display:none; }
 .page-content { flex:1 0 auto; min-height:0; min-width:0; max-width:none; padding:34px 40px; }
