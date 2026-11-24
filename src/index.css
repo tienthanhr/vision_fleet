@@ -281,6 +281,14 @@ footer > div { display: flex; flex-direction: column; gap: 5px; }footer strong {
 .assignment .full-button { margin-top:16px; }
 .admin-actions { display:grid; gap:10px; }
 .admin-actions h2 { margin:0; }
+.saved-location-preview { min-height:210px; display:grid; align-content:center; gap:8px; padding:24px 28px; border:1px solid #dce8ef; border-radius:9px; background:linear-gradient(135deg,#edf7fb 0%,#f8fbfc 55%,#edf5ee 100%); }
+.saved-location-line { display:flex; align-items:flex-start; gap:13px; }
+.saved-location-line small { display:block; margin-bottom:5px; color:#718096; font-size:10px; font-weight:700; letter-spacing:.08em; }
+.saved-location-line strong { display:block; color:#073b66; font-size:15px; }
+.saved-location-line p { margin:4px 0 0; color:#43536b; font-size:12px; }
+.saved-location-dot { width:20px; height:20px; flex:0 0 20px; margin-top:2px; border:5px solid #078dbb; border-radius:50%; background:#fff; }
+.saved-location-dot.destination { display:grid; place-items:center; border:0; color:#fff; background:#073b66; }
+.saved-location-path { width:2px; height:42px; margin-left:9px; display:flex; flex-direction:column; justify-content:space-around; background:repeating-linear-gradient(to bottom,#078dbb 0 5px,transparent 5px 10px); }
 .status-select-label { display:grid; gap:7px; color:var(--portal-muted); font-size:12px; font-weight:600; }
 .status-select { width:100%; min-height:42px; padding:0 12px; border:1px solid var(--portal-line); border-radius:6px; color:var(--portal-navy); background:#fff; font-weight:600; }
 .admin-actions .primary-button,

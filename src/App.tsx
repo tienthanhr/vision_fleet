@@ -110,6 +110,17 @@ const students = [
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5075/api";
 const DEMO_ADMIN_ID = "00000000-0000-0000-0000-000000000001";
+
+const presetLocations = [
+  { name: "Vision College Hamilton", address: "21 Ruakura Road, Hamilton 3216" },
+  { name: "University of Waikato", address: "Gate 1, Knighton Road, Hillcrest, Hamilton 3216" },
+  { name: "Hamilton Central Library", address: "9 Garden Place, Hamilton 3204" },
+  { name: "Hamilton Gardens", address: "Hungerford Crescent, Hamilton 3216" },
+  { name: "The Base", address: "Corner of Te Rapa Road and Wairere Drive, Te Rapa, Hamilton 3200" },
+] as const;
+
+const formatPresetLocation = (location: (typeof presetLocations)[number]) =>
+  `${location.name} - ${location.address}`;
 function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   return fetch(input, { ...init, credentials: "include", headers: { ...(init.headers ?? {}) } });
 }
@@ -309,6 +320,8 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
   const [students, setStudents] = useState<ApiStudent[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [showPassengers, setShowPassengers] = useState(false);
+  const [pickupLocation, setPickupLocation] = useState(formatPresetLocation(presetLocations[0]));
+  const [destinationLocation, setDestinationLocation] = useState(formatPresetLocation(presetLocations[2]));
 
   useEffect(() => {
     Promise.all([
@@ -375,8 +388,8 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
           <label className="full">Vehicle preference (optional)<select name="vanId" defaultValue=""><option value="">No preference — assign after approval</option>{vans.map((van) => <option value={van.id} key={van.id}>{van.registrationNumber} · {van.name ?? "College van"} · {van.capacity} seats</option>)}</select></label>
           <label>Departure date<input required name="journeyDate" type="date" defaultValue="2026-10-20" /></label>
           <label>Departure time<input required name="startTime" type="time" defaultValue="08:30" /></label>
-          <label>Pickup location<input required name="pickup" placeholder="Select or enter location" /></label>
-          <label>Destination<input required name="destination" placeholder="Enter destination" /></label>
+          <label>Pickup location<select required name="pickup" value={pickupLocation} onChange={(event) => setPickupLocation(event.target.value)}><option value="">Select saved pickup location</option>{presetLocations.map((location) => <option value={formatPresetLocation(location)} key={location.name}>{formatPresetLocation(location)}</option>)}</select></label>
+          <label>Destination<select required name="destination" value={destinationLocation} onChange={(event) => setDestinationLocation(event.target.value)}><option value="">Select saved destination</option>{presetLocations.map((location) => <option value={formatPresetLocation(location)} key={location.name}>{formatPresetLocation(location)}</option>)}</select></label>
           <label>Expected return date<input type="date" defaultValue="2026-10-20" /></label>
           <label>Expected return time<input name="endTime" type="time" defaultValue="16:00" /></label>
         </div>
@@ -395,6 +408,7 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
 
 function StudentTransportForm({ back, openRoute }: { back: () => void; openRoute: () => void }) {
   const [selected, setSelected] = useState([0, 1, 2]);
+  const [destination, setDestination] = useState(formatPresetLocation(presetLocations[0]));
   const toggleStudent = (index: number) => setSelected(selected.includes(index) ? selected.filter((item) => item !== index) : [...selected, index]);
   return <>
     <button className="back-button" onClick={back}>← Change journey type</button>
@@ -414,7 +428,7 @@ function StudentTransportForm({ back, openRoute }: { back: () => void; openRoute
           <label>Journey date<input type="date" defaultValue="2025-06-24" /></label>
           <label>Required arrival time<input type="time" defaultValue="08:20" /></label>
           <label>Planned first pickup<input type="time" defaultValue="07:30" /></label>
-          <label>Destination<input defaultValue="Vision College Main Campus" /></label>
+          <label>Destination<select value={destination} onChange={(event) => setDestination(event.target.value)}>{presetLocations.map((location) => <option value={formatPresetLocation(location)} key={location.name}>{formatPresetLocation(location)}</option>)}</select></label>
           <label className="full">Special instructions<textarea rows={3} defaultValue="Call guardian two minutes before arrival. Ama requires assistance with her equipment bag." /></label>
         </div>
         <div className="form-actions"><button type="button" className="secondary-button">Save draft</button><button className="primary-button" type="submit"><Icon name="route" size={17} /> Generate suitable route</button></div>
@@ -769,7 +783,7 @@ function DriverRoutePage() {
 }
 
 function JourneyDetails({ driver = false }: { driver?: boolean }) {
-  return <><PageTitle eyebrow={driver ? "ROUTE VC-JR-208" : "UPCOMING JOURNEY"} title="Networking Lab Visit" subtitle="Tuesday, 24 June 2025 · Departure at 08:30 AM" action={<Status>Approved</Status>} /><div className="detail-grid"><section className="panel map-panel"><div className="mock-map"><div className="map-road one" /><div className="map-road two" /><div className="map-road three" /><span className="map-pin start"><Icon name="bus" size={18} /></span><span className="map-pin end"><Icon name="location" size={18} /></span><div className="map-route" /></div><div className="route-summary"><div><small>FROM</small><strong>Vision College Main Campus</strong><span>08:30 AM</span></div><Icon name="arrow" /><div><small>TO</small><strong>Ghana-India Kofi Annan Centre</strong><span>09:15 AM estimated</span></div></div></section><aside className="side-stack"><section className="panel"><h2>Journey information</h2><div className="info-list"><div><Icon name="calendar" /><span><small>Date</small><strong>24 June, 2025</strong></span></div><div><Icon name="bus" /><span><small>Assigned van</small><strong>VC-04 · Toyota Hiace</strong></span></div><div><Icon name="user" /><span><small>Driver</small><strong>Kwame Asare</strong></span></div><div><Icon name="users" /><span><small>Passengers</small><strong>12 confirmed</strong></span></div></div></section>{driver && <button className="primary-button full-button">Start journey <Icon name="arrow" /></button>}</aside></div></>;
+  return <><PageTitle eyebrow={driver ? "ROUTE VC-JR-208" : "UPCOMING JOURNEY"} title="Networking Lab Visit" subtitle="Tuesday, 24 June 2025 · Departure at 08:30 AM" action={<Status>Approved</Status>} /><div className="detail-grid"><section className="panel map-panel"><div className="saved-location-preview"><div className="saved-location-line"><span className="saved-location-dot start" /><div><small>FROM</small><strong>Vision College Hamilton</strong><p>21 Ruakura Road, Hamilton 3216</p></div></div><div className="saved-location-path"><span /><span /><span /></div><div className="saved-location-line"><span className="saved-location-dot destination"><Icon name="location" size={14} /></span><div><small>TO</small><strong>Hamilton Central Library</strong><p>9 Garden Place, Hamilton 3204</p></div></div></div><div className="route-summary"><div><small>DEPARTURE</small><strong>Vision College Hamilton</strong><span>08:30 AM</span></div><Icon name="arrow" /><div><small>ARRIVAL</small><strong>Hamilton Central Library</strong><span>Estimated from saved route</span></div></div></section><aside className="side-stack"><section className="panel"><h2>Journey information</h2><div className="info-list"><div><Icon name="calendar" /><span><small>Date</small><strong>24 June, 2025</strong></span></div><div><Icon name="bus" /><span><small>Assigned van</small><strong>VC-04 · Toyota Hiace</strong></span></div><div><Icon name="user" /><span><small>Driver</small><strong>Kwame Asare</strong></span></div><div><Icon name="users" /><span><small>Passengers</small><strong>12 confirmed</strong></span></div></div></section>{driver && <button className="primary-button full-button">Start journey <Icon name="arrow" /></button>}</aside></div></>;
 }
 
 function AttendancePage({ driver = false }: { driver?: boolean }) {
