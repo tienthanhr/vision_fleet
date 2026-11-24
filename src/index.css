@@ -311,6 +311,10 @@ footer > div { display: flex; flex-direction: column; gap: 5px; }footer strong {
 .status-update-pending { border-color:#e7b86a; background:#fff8e7; }
 .status-update-approved { border-color:#86c7a6; background:#edf8f2; }
 .status-update-declined { border-color:#df9da4; background:#fff1f2; }
+.status-feedback { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 18px; padding:10px 12px 10px 16px; border:1px solid var(--portal-line); border-radius:8px; }
+.status-feedback-pending { border-color:#e7b86a; background:#fff8e7; }
+.status-feedback-approved { border-color:#86c7a6; background:#edf8f2; }
+.status-feedback-declined { border-color:#df9da4; background:#fff1f2; }
 .admin-actions .primary-button,
 .admin-actions .danger-button { width:100%; min-width:0; }
 .passenger-summary { min-width:0; }
