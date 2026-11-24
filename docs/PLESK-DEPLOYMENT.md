@@ -14,7 +14,30 @@ Serving the SPA and the API from one origin avoids CORS entirely.
 path, so deep links such as `/booking-details/{id}/` keep working after a
 browser refresh (Back/Forward friendly URLs).
 
-## Frontend build
+## Automated deployment via Git (recommended)
+
+The repository has a CI pipeline (`.github/workflows/deploy.yml`) that automates
+everything:
+
+1. Any push to `main` triggers GitHub Actions.
+2. CI builds the frontend (`npm run build` with `VITE_API_BASE_URL=/api`) and
+   publishes the backend (`dotnet publish`) into one deploy tree.
+3. CI force-pushes the tree to the `deploy` branch.
+4. CI calls the Plesk Git webhook, which pulls the `deploy` branch and deploys
+   it automatically to the document root of
+   `booking.dipwww.visioncollege.ac.nz`.
+
+So the normal workflow is: edit code → commit → `git push origin main` —
+the live site updates on its own a couple of minutes later. In Plesk the
+repository `vision_fleet.git` (Websites & Domains → booking domain → Git)
+shows the deploy status; `Pull now` / `Deploy now` are available if the
+webhook ever needs a manual retry.
+
+After a deployment that replaced backend DLLs, the .NET Core application may
+need a restart (toggle Enabled OFF/ON in the .NET Core settings) before the
+new DLLs are loaded.
+
+## Manual frontend build (fallback)
 
 The API base URL is taken from `VITE_API_BASE_URL`
 (see `.env.production`); local development falls back to

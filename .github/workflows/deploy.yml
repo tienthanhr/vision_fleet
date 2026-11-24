@@ -52,3 +52,12 @@ jobs:
           git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Plesk auto-deploy
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"ref":"refs/heads/deploy"}' \
+            "${{ secrets.PLESK_WEBHOOK_URL }}")
+          echo "Webhook response: $code"
+          if [ "$code" != "204" ]; then echo "Webhook failed"; exit 1; fi
