@@ -176,7 +176,7 @@ function formatApiTime(time: string | null | undefined) {
 
 function Status({ children }: { children?: string | null }) {
   const label = children?.trim() || "Unknown";
-  return <span className={`status status-${label.toLowerCase().replaceAll(" ", "-")}`}><span />{label}</span>;
+  return <span className={`status status-${label.toLowerCase().replace(/ /g, "-")}`}><span />{label}</span>;
 }
 
 function Logo() {
@@ -192,11 +192,11 @@ function Sidebar({ role, active, setActive, open, setOpen, onLogout }: { role: R
       <div className="portal-tag"><Icon name="shield" size={16} /><div><span>{roleNames[role]} portal</span><small>Secure access</small></div></div>
       <nav>
         <span className="nav-label">MAIN MENU</span>
-        {visible.map((item) => <button key={item.label} className={`nav-item ${active === item.label ? "active" : ""}`} onClick={() => { setActive(item.label); setOpen(false); }}><Icon name={item.icon} /><span>{item.label}</span>{item.adminOnly && <i>ADMIN</i>}</button>)}
+        {visible.map((item) => <button type="button" key={item.label} className={`nav-item ${active === item.label ? "active" : ""}`} onClick={() => { setActive(item.label); setOpen(false); }}><Icon name={item.icon} /><span>{item.label}</span>{item.adminOnly && <i>ADMIN</i>}</button>)}
       </nav>
       <div className="sidebar-foot">
-        <button className="nav-item" onClick={() => setActive("Profile")}><Icon name="user" /><span>My Profile</span></button>
-        <button className="nav-item" onClick={onLogout}><Icon name="logout" /><span>Sign out</span></button>
+        <button type="button" className="nav-item" onClick={() => setActive("Profile")}><Icon name="user" /><span>My Profile</span></button>
+        <button type="button" className="nav-item" onClick={onLogout}><Icon name="logout" /><span>Sign out</span></button>
         <div className="privacy"><Icon name="shield" size={17} /><span>Your data is protected by role-based access.</span></div>
       </div>
     </aside>
@@ -795,6 +795,7 @@ const routeStops = [
   { time: "07:55", name: "Nana Boateng", address: "27 Jungle Avenue, Dzorwulu", state: "Waiting" },
   { time: "08:20", name: "Vision College", address: "Main Campus · Final destination", state: "Not Started" },
 ];
+const completedRouteStopStatuses = ["Picked Up", "Absent", "Dropped Off", "Completed"];
 
 function RoutePlanning({ monitor = false }: { monitor?: boolean }) {
   const [approved, setApproved] = useState(false);
@@ -860,16 +861,72 @@ function PrivateJourneyStatus({ selectedStudent }: { selectedStudent: number }) 
   </>;
 }
 
-function DriverRoutePage() {
-  const [states, setStates] = useState<Record<number, string>>({ 0: "Picked Up", 1: "Waiting", 2: "Waiting" });
+function googleMapsUrl(address: string, navigation = false) {
+  const action = navigation ? "dir" : "search";
+  const parameter = navigation ? "destination" : "query";
+  return `https://www.google.com/maps/${action}/?api=1&${parameter}=${encodeURIComponent(address)}`;
+}
+
+function DriverRoutePage({ stops, boardingTimes, updateStop }: {
+  stops: typeof routeStops;
+  boardingTimes: Record<number, string>;
+  updateStop: (index: number, status: string) => void;
+}) {
+  const [reportMessage, setReportMessage] = useState("");
+  const nextStopIndex = stops.findIndex((stop) => !completedRouteStopStatuses.includes(stop.state));
+  const completedStops = stops.filter((stop) => completedRouteStopStatuses.includes(stop.state)).length;
+  const progress = Math.round((completedStops / stops.length) * 100);
+  const nextStop = stops[nextStopIndex] ?? stops[stops.length - 1];
   return <>
     <PageTitle eyebrow="CURRENT JOURNEY · JR-208" title="Complete morning pickup route" subtitle="Tuesday, 24 June · VC-03 · Required arrival 08:20" action={<Status>Journey In Progress</Status>} />
-    <div className="driver-progress-card"><div><span>ROUTE PROGRESS</span><strong>1 of 4 stops completed</strong></div><div className="progress-track"><i /></div><b>25%</b></div>
+    <p className="driver-demo-notice" role="status">Route status changes are a local demo and are not saved to the database.</p>
+    <div className="driver-progress-card"><div><span>ROUTE PROGRESS</span><strong>{completedStops} of {routeStops.length} stops completed</strong></div><div className="progress-track"><i style={{ width: `${progress}%` }} /></div><b>{progress}%</b></div>
     <div className="route-planning-grid">
-      <section className="panel"><div className="next-stop-head"><span className="live-pulse" /><div><small>NEXT STOP · PLANNED 07:42 AM</small><h2>Kojo Boateng</h2><p><Icon name="location" size={15} /> 8 Boundary Road, Shiashie</p></div><Status>{states[1] || "Waiting"}</Status></div><div className="guardian-note"><div><small>GUARDIAN CONTACT</small>      <strong>Adwoa Boateng · +64 21 555 0173</strong></div><div><small>SPECIAL NOTE</small><strong>Call two minutes before arrival</strong></div></div><div className="driver-primary-actions"><button className="secondary-button"><Icon name="location" /> Open map</button><button className="primary-button"><Icon name="route" /> Start navigation</button></div><div className="driver-status-actions"><button onClick={() => setStates({ ...states, 1: "Picked Up" })}><Icon name="check" /> Mark picked up</button><button onClick={() => setStates({ ...states, 1: "Absent" })}>Mark absent</button><button onClick={() => setStates({ ...states, 1: "Picked Up" })}><Icon name="clock" /> Record boarding time</button></div></section>
-      <aside className="panel compact-stop-list"><div className="panel-head"><div><h2>All route stops</h2><p>Complete route visible to assigned driver</p></div></div>{routeStops.map((stop, index) => <div className={`compact-stop ${index === 1 ? "current" : ""}`} key={stop.name}><span>{index + 1}</span><div><strong>{stop.name}</strong><small>{stop.time} · {stop.address}</small></div><Status>{states[index] || stop.state}</Status></div>)}</aside>
+      <section className="panel"><div className="next-stop-head"><span className="live-pulse" /><div><small>{nextStopIndex < 0 ? "ROUTE COMPLETE" : `NEXT STOP · PLANNED ${nextStop.time} AM`}</small><h2>{nextStop.name}</h2><p><Icon name="location" size={15} /> {nextStop.address}</p></div><Status>{nextStopIndex < 0 ? "Completed" : nextStop.state}</Status></div>{nextStopIndex >= 0 && nextStopIndex < stops.length - 1 && <div className="guardian-note"><div><small>GUARDIAN CONTACT</small><strong>Adwoa Boateng · +64 21 555 0173</strong></div><div><small>SPECIAL NOTE</small><strong>Call two minutes before arrival</strong></div></div>}<div className="driver-primary-actions"><a className="secondary-button driver-map-link" href={googleMapsUrl(nextStop.address)} target="_blank" rel="noopener noreferrer"><Icon name="location" /> Open map</a><a className="primary-button driver-map-link" href={googleMapsUrl(nextStop.address, true)} target="_blank" rel="noopener noreferrer"><Icon name="route" /> Start navigation</a></div>{nextStopIndex >= 0 && <div className="driver-status-actions">{nextStopIndex === stops.length - 1 ? <button type="button" onClick={() => updateStop(nextStopIndex, "Completed")}><Icon name="check" /> Mark arrived</button> : <><button type="button" onClick={() => updateStop(nextStopIndex, "Picked Up")}><Icon name="check" /> Mark picked up</button><button type="button" onClick={() => updateStop(nextStopIndex, "Absent")}>Mark absent</button><button type="button" onClick={() => updateStop(nextStopIndex, "Picked Up")}><Icon name="clock" /> Record boarding time</button></>}</div>}{boardingTimes[nextStopIndex] && <p className="boarding-confirmation" role="status">Boarding time recorded at {boardingTimes[nextStopIndex]}.</p>}</section>
+      <aside className="panel compact-stop-list"><div className="panel-head"><div><h2>All route stops</h2><p>Complete route visible to assigned driver</p></div></div>{stops.map((stop, index) => <div className={`compact-stop ${index === nextStopIndex ? "current" : ""}`} key={stop.name}><span>{index + 1}</span><div><strong>{stop.name}</strong><small>{stop.time} · {stop.address}</small></div><Status>{stop.state}</Status></div>)}</aside>
     </div>
-    <div className="privacy-banner driver-safety"><Icon name="shield" /><div><strong>Authorised route access</strong><span>Addresses and guardian contacts are provided only for this assigned journey. Do not share or retain private student information.</span></div><button className="danger-button">Report route problem</button></div>
+    <div className="privacy-banner driver-safety"><Icon name="shield" /><div><strong>Authorised route access</strong><span>Addresses and guardian contacts are provided only for this assigned journey. Do not share or retain private student information.</span>{reportMessage && <span className="report-confirmation" role="status">{reportMessage}</span>}</div><button className="danger-button" onClick={() => setReportMessage("Route issue noted. Contact the transport coordinator for assistance.")}>Report route problem</button></div>
+  </>;
+}
+
+function DriverAssignedJourneys({ setActive }: { setActive: (value: string) => void }) {
+  return <>
+    <PageTitle eyebrow="DRIVER PORTAL" title="Assigned journeys" subtitle="Review the journeys assigned to you and open a route for details." />
+    <section className="panel driver-journeys-panel">
+      <div className="panel-head"><div><h2>Tuesday, 24 June 2025</h2><p>2 journeys assigned · Van VC-03</p></div></div>
+      {[["07:30", "Morning Student Pickup", "East Legon → Vision College", "3 students", "Journey In Progress"], ["15:30", "Return Student Transport", "Vision College → Home stops", "3 students", "Driver Assigned"]].map((journey, index) =>
+        <article className="driver-journey-card" key={journey[0]}>
+          <div className="journey-time"><strong>{journey[0]}</strong><span>{index ? "PM" : "AM"}</span></div>
+          <div className="driver-journey-copy"><strong>{journey[1]}</strong><span><Icon name="location" size={14} /> {journey[2]}</span><small>{journey[3]} · Van VC-03 · Toyota Hiace</small></div>
+          <Status>{journey[4]}</Status>
+          <button className="secondary-button" onClick={() => setActive("Complete Route")}>View route <Icon name="arrow" size={16} /></button>
+        </article>,
+      )}
+    </section>
+  </>;
+}
+
+function DriverJourneyProgress({ stops }: { stops: typeof routeStops }) {
+  const nextStopIndex = stops.findIndex((stop) => !completedRouteStopStatuses.includes(stop.state));
+  const completedStops = stops.filter((stop) => completedRouteStopStatuses.includes(stop.state)).length;
+  const progress = Math.round((completedStops / stops.length) * 100);
+  return <>
+    <PageTitle eyebrow="JOURNEY JR-208" title="Journey progress" subtitle="Track each stop on the active morning pickup route." action={<Status>Journey In Progress</Status>} />
+    <p className="driver-demo-notice" role="status">Progress reflects the route demo in this browser session; it is not saved to the database.</p>
+    <section className="panel journey-progress-panel">
+      <div className="driver-progress-card"><div><span>ROUTE PROGRESS</span><strong>{completedStops} of {stops.length} stops complete</strong></div><div className="progress-track"><i style={{ width: `${progress}%` }} /></div><b>{progress}%</b></div>
+      <div className="driver-progress-list">{stops.map((stop, index) => { const complete = completedRouteStopStatuses.includes(stop.state); return <div className={`driver-progress-stop ${complete ? "complete" : index === nextStopIndex ? "current" : ""}`} key={stop.name}><span className="progress-stop-marker">{complete ? <Icon name="check" size={15} /> : index + 1}</span><div><strong>{stop.name}</strong><small>{stop.address}</small></div><span className="driver-stop-time">{stop.time}</span><Status>{stop.state}</Status></div>; })}</div>
+    </section>
+  </>;
+}
+
+function DriverPassengerList({ setActive }: { setActive: (value: string) => void }) {
+  const passengers = routeStops.slice(0, -1);
+  return <>
+    <PageTitle eyebrow="MORNING STUDENT PICKUP · JR-208" title="Passenger list" subtitle="Passenger details for your assigned route only." action={<Status>{`${passengers.length} passengers`}</Status>} />
+    <section className="panel driver-passengers-panel">
+      {passengers.map((passenger) => <article className="driver-passenger-row" key={passenger.name}><div className="avatar">{passenger.name.split(" ").map((word) => word[0]).join("")}</div><div className="driver-passenger-copy"><strong>{passenger.name}</strong><span><Icon name="location" size={14} /> {passenger.address}</span></div><div className="driver-passenger-pickup"><small>PLANNED PICKUP</small><strong>{passenger.time} AM</strong></div><Status>{passenger.state}</Status><button className="row-action" onClick={() => setActive("Passenger Attendance")}>Attendance <Icon name="arrow" size={15} /></button></article>)}
+    </section>
   </>;
 }
 
@@ -878,31 +935,133 @@ function JourneyDetails({ driver = false }: { driver?: boolean }) {
 }
 
 function AttendancePage({ driver = false }: { driver?: boolean }) {
-  const [attendance, setAttendance] = useState<Record<number, string>>({ 0: "Picked Up", 1: "Waiting", 3: "Absent" });
-  const [databaseAttendance, setDatabaseAttendance] = useState<Array<{ id: string; name: string; status: string }>>([]);
+  type AttendanceRecord = { id: string; name: string; status: string; recordedAt?: string };
+  const [databaseAttendance, setDatabaseAttendance] = useState<AttendanceRecord[]>([]);
+  const [error, setError] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isDemoData, setIsDemoData] = useState(false);
+  const [demoMessage, setDemoMessage] = useState("");
   useEffect(() => {
+    let active = true;
     apiFetch(`${API_BASE_URL}/journeys/attendance`)
-      .then(async (response) => { if (!response.ok) throw new Error(await response.text() || "Could not load attendance."); return response.json(); })
-      .then(setDatabaseAttendance)
-      .catch(() => {});
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await response.text() || "Could not load attendance.");
+        return response.json() as Promise<AttendanceRecord[]>;
+      })
+      .then((records) => {
+        if (!active) return;
+        if (records.length) {
+          setDatabaseAttendance(records);
+          setIsDemoData(false);
+          return;
+        }
+        setDatabaseAttendance(routeStops.slice(0, -1).map((stop, index) => ({
+          id: `demo-passenger-${index}`,
+          name: stop.name,
+          status: stop.state === "Picked Up" ? "picked_up" : "waiting",
+          recordedAt: stop.state === "Picked Up" ? new Date().toISOString() : undefined,
+        })));
+        setIsDemoData(true);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Could not load attendance.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, []);
   const saveAttendance = async (id: string, status: string) => {
-    await apiFetch(`${API_BASE_URL}/journeys/attendance/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: status.toLowerCase().replace(" ", "_") }) });
+    setSavingId(id);
+    setError("");
+    const attendanceStatus = status.toLowerCase().replace(/ /g, "_");
+    if (isDemoData) {
+      setDatabaseAttendance((items) => items.map((item) => item.id === id ? { ...item, status: attendanceStatus, recordedAt: new Date().toISOString() } : item));
+      setDemoMessage("Demo update only; this sample attendance was not saved to the database.");
+      setSavingId(null);
+      return;
+    }
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/journeys/attendance/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: attendanceStatus }) });
+      if (!response.ok) throw new Error(await response.text() || "Could not update attendance.");
+      setDatabaseAttendance((items) => items.map((item) => item.id === id ? { ...item, status: attendanceStatus, recordedAt: new Date().toISOString() } : item));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update attendance.");
+    } finally {
+      setSavingId(null);
+    }
   };
-  const passengerNames = ["Ama Boateng", "Kojo Boateng", "Nana Boateng", "Yaw Mensah", "Linda Asante", "Richard Koomson"];
-  return <><PageTitle eyebrow={driver ? "PASSENGER CHECK-IN" : "STUDENT RECORD"} title={driver ? "Passenger attendance & times" : "Attendance history"} subtitle={driver ? "Morning Student Pickup · Database records" : "Review journey attendance and recorded boarding times."} action={driver ? <button className="primary-button">Save attendance</button> : undefined} /><section className="panel"><div className="attendance-summary"><div><strong>{databaseAttendance.filter((item) => item.status === "picked_up").length}</strong><span>Picked up</span></div><div><strong>{databaseAttendance.filter((item) => item.status === "absent").length}</strong><span>Absent</span></div><div><strong>{databaseAttendance.filter((item) => item.status === "pending").length}</strong><span>Waiting</span></div></div><div className="attendance-table">{databaseAttendance.map((item) => <div className="attendance-record" key={item.id}><div className="avatar">{item.name.split(" ").map((word) => word[0]).join("")}</div><div><strong>{item.name}</strong><span>{item.recordedAt ? `Recorded ${new Date(item.recordedAt).toLocaleTimeString()}` : "No time recorded"}</span></div><div className="attendance-controls four"><button onClick={() => saveAttendance(item.id, "Waiting")}>Waiting</button><button onClick={() => saveAttendance(item.id, "Picked Up")}>Picked Up</button><button onClick={() => saveAttendance(item.id, "Absent")}>Absent</button><button onClick={() => saveAttendance(item.id, "Dropped Off")}>Dropped Off</button></div></div>)}</div></section></>;
+  const subtitle = !driver
+    ? "Review journey attendance and recorded boarding times."
+    : isDemoData
+      ? "Sample passenger list · Demo updates stay on this screen."
+      : "Morning Student Pickup · Updates are saved to the database.";
+  const attendanceContent = loading
+    ? <div className="empty-state"><p>Loading attendance records...</p></div>
+    : error
+      ? null
+      : databaseAttendance.length
+        ? (
+          <div className="attendance-table">
+            {databaseAttendance.map((item) => (
+              <div className="attendance-record" key={item.id}>
+                <div className="avatar">{item.name.split(" ").map((word) => word[0]).join("")}</div>
+                <div className="attendance-person">
+                  <strong>{item.name}</strong>
+                  <span>{item.recordedAt ? `Recorded ${new Date(item.recordedAt).toLocaleTimeString()}` : "No boarding time recorded"}</span>
+                </div>
+                <div className="attendance-controls four">
+                  <button className={item.status === "waiting" || item.status === "pending" ? "selected" : ""} disabled={savingId === item.id} onClick={() => saveAttendance(item.id, "Waiting")}>Waiting</button>
+                  <button className={item.status === "picked_up" ? "selected" : ""} disabled={savingId === item.id} onClick={() => saveAttendance(item.id, "Picked Up")}>Picked Up</button>
+                  <button className={item.status === "absent" ? "selected" : ""} disabled={savingId === item.id} onClick={() => saveAttendance(item.id, "Absent")}>Absent</button>
+                  <button className={item.status === "dropped_off" ? "selected" : ""} disabled={savingId === item.id} onClick={() => saveAttendance(item.id, "Dropped Off")}>Dropped Off</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+        : <div className="empty-state"><h2>No passengers to check in</h2><p>Attendance records will appear here when passengers are assigned to a journey.</p></div>;
+  return (
+    <>
+      <PageTitle
+        eyebrow={driver ? "PASSENGER CHECK-IN" : "STUDENT RECORD"}
+        title={driver ? "Passenger attendance & times" : "Attendance history"}
+        subtitle={subtitle}
+      />
+      <section className="panel attendance-panel">
+        {isDemoData && <p className="driver-demo-notice">Demo sample data: no attendance records are saved for this journey yet.</p>}
+        <div className="attendance-summary">
+          <div><strong>{databaseAttendance.filter((item) => item.status === "picked_up").length}</strong><span>Picked up</span></div>
+          <div><strong>{databaseAttendance.filter((item) => item.status === "absent").length}</strong><span>Absent</span></div>
+          <div><strong>{databaseAttendance.filter((item) => item.status === "pending" || item.status === "waiting").length}</strong><span>Waiting</span></div>
+        </div>
+        {error && <p className="form-message error" role="alert">{error}</p>}
+        {demoMessage && <p className="driver-demo-notice" role="status">{demoMessage}</p>}
+        {attendanceContent}
+      </section>
+    </>
+  );
 }
 
-function DriverDashboard({ setActive }: { setActive: (value: string) => void }) {
-  return <><PageTitle eyebrow="DRIVER PORTAL" title="Good morning, Kwame" subtitle="Your current student pickup is in progress. The next stop is planned for 07:42." />
+function DriverDashboard({ setActive, stops }: { setActive: (value: string) => void; stops: typeof routeStops }) {
+  const completedStops = stops.filter((stop) => completedRouteStopStatuses.includes(stop.state)).length;
+  const progress = Math.round((completedStops / stops.length) * 100);
+  const nextStopIndex = stops.findIndex((stop) => !completedRouteStopStatuses.includes(stop.state));
+  const nextStop = stops[nextStopIndex] ?? stops[stops.length - 1];
+  const passengers = stops.slice(0, -1);
+  const pickedUp = passengers.filter((stop) => stop.state === "Picked Up").length;
+  const remaining = passengers.filter((stop) => !completedRouteStopStatuses.includes(stop.state)).length;
+  const initials = nextStop.name.split(" ").map((word) => word[0]).join("").slice(0, 2);
+  return <><PageTitle eyebrow="DRIVER PORTAL" title="Good morning, Kwame" subtitle={nextStopIndex < 0 ? "Your assigned route is complete." : `Your next stop is ${nextStop.name}, planned for ${nextStop.time}.`} />
     <div className="driver-current">
       <div className="driver-current-head"><div><span className="live-pulse" /><small>JOURNEY IN PROGRESS</small><h2>Morning Student Pickup</h2><p>Route JR-208 · Van VC-03 · 4 total stops</p></div><Status>Journey In Progress</Status></div>
-      <div className="driver-route-progress"><div><span>1</span><small>STOP COMPLETED</small></div><div className="progress-track"><i /></div><div><strong>25%</strong><small>ROUTE PROGRESS</small></div></div>
-      <div className="next-stop-card"><span className="next-label">NEXT STOP</span><div className="student-avatar green">KB</div><div><h3>Kojo Boateng</h3><p><Icon name="location" size={14} /> 8 Boundary Road, Shiashie</p><span>Planned pickup · <strong>07:42 AM</strong></span></div><div className="next-eta"><small>ARRIVE IN</small><strong>6 min</strong></div></div>
-      <div className="driver-dashboard-actions"><button className="light-button" onClick={() => setActive("Complete Route")}><Icon name="location" /> Open map</button><button className="primary-button" onClick={() => setActive("Complete Route")}><Icon name="route" /> Navigate to next stop</button><button className="light-button" onClick={() => setActive("Passenger Attendance")}><Icon name="check" /> Record pickup</button></div>
+      <div className="driver-route-progress"><div><span>{completedStops}</span><small>STOPS COMPLETED</small></div><div className="progress-track"><i style={{ width: `${progress}%` }} /></div><div><strong>{progress}%</strong><small>ROUTE PROGRESS</small></div></div>
+      <div className="next-stop-card"><span className="next-label">{nextStopIndex < 0 ? "ROUTE STATUS" : "NEXT STOP"}</span><div className="student-avatar green">{initials}</div><div><h3>{nextStopIndex < 0 ? "Route complete" : nextStop.name}</h3><p><Icon name="location" size={14} /> {nextStop.address}</p><span>{nextStopIndex < 0 ? "All stops completed" : <>Planned pickup · <strong>{nextStop.time} AM</strong></>}</span></div><div className="next-eta"><small>STATUS</small><strong>{nextStop.state}</strong></div></div>
+      <div className="driver-dashboard-actions"><a className="secondary-button driver-map-link" href={googleMapsUrl(nextStop.address)} target="_blank" rel="noopener noreferrer"><Icon name="location" /> Open map</a><a className="primary-button driver-map-link" href={googleMapsUrl(nextStop.address, true)} target="_blank" rel="noopener noreferrer"><Icon name="route" /> Navigate to next stop</a><button type="button" className="light-button" onClick={() => setActive("Complete Route")}><Icon name="check" /> Record pickup</button></div>
     </div>
-    <div className="family-metrics"><MetricCard icon="route" value="2" label="Assigned today" detail="1 currently active" /><MetricCard icon="bus" value="VC-03" label="Assigned van" detail="Toyota Hiace · 15 seats" tone="green" /><MetricCard icon="users" value="3 / 4" label="Students remaining" detail="1 student picked up" tone="purple" /></div>
-    <section className="panel"><div className="panel-head"><div><h2>Today’s assigned journeys</h2><p>Tuesday, 24 June 2025</p></div><button className="text-button">View all</button></div>{[["07:30","Morning Student Pickup","East Legon → Vision College","3 students"],["15:30","Return Student Transport","Vision College → Home stops","3 students"]].map((j, i) => <div className="journey-row" key={j[0]}><div className="journey-time"><strong>{j[0]}</strong><span>{i ? "PM" : "AM"}</span></div><div className="timeline-dot"><span /><i /></div><div><strong>{j[1]}</strong><span><Icon name="location" size={14} /> {j[2]}</span></div><div className="passenger-count"><Icon name="users" size={17} />{j[3]}</div><Status>{i ? "Driver Assigned" : "Journey In Progress"}</Status><button className="row-action" onClick={() => setActive("Complete Route")}>Details <Icon name="arrow" /></button></div>)}</section></>;
+    <div className="family-metrics driver-metrics"><MetricCard icon="route" value="2" label="Assigned today" detail="1 currently active" /><MetricCard icon="bus" value="VC-03" label="Assigned van" detail="Toyota Hiace · 15 seats" tone="green" /><MetricCard icon="users" value={`${remaining} / ${passengers.length}`} label="Students remaining" detail={`${pickedUp} student${pickedUp === 1 ? "" : "s"} picked up`} tone="purple" /></div>
+    <section className="panel"><div className="panel-head"><div><h2>Today’s assigned journeys</h2><p>Tuesday, 24 June 2025</p></div><button className="text-button" onClick={() => setActive("Assigned Journeys")}>View all</button></div>{[["07:30","Morning Student Pickup","East Legon → Vision College","3 students"],["15:30","Return Student Transport","Vision College → Home stops","3 students"]].map((j, i) => <div className="journey-row" key={j[0]}><div className="journey-time"><strong>{j[0]}</strong><span>{i ? "PM" : "AM"}</span></div><div className="timeline-dot"><span /><i /></div><div><strong>{j[1]}</strong><span><Icon name="location" size={14} /> {j[2]}</span></div><div className="passenger-count"><Icon name="users" size={17} />{j[3]}</div><Status>{i ? "Driver Assigned" : "Journey In Progress"}</Status><button className="row-action" onClick={() => setActive("Complete Route")}>Details <Icon name="arrow" /></button></div>)}</section></>;
 }
 
 function GenericPage({ title }: { title: string }) {
@@ -967,6 +1126,11 @@ export default function App() {
       "manage-drivers": "Manage Drivers",
       "manage-students": "Manage Students",
       "manage-users": "Manage Users",
+      "assigned-journeys": "Assigned Journeys",
+      "complete-route": "Complete Route",
+      "journey-progress": "Journey Progress",
+      "passenger-list": "Passenger List",
+      "passenger-attendance": "Passenger Attendance",
       profile: "Profile",
     };
     return labels[route.split("/")[0]] ?? "Dashboard";
@@ -979,6 +1143,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(bookingIdFromLocation);
+  const [driverStops, setDriverStops] = useState(routeStops);
+  const [driverBoardingTimes, setDriverBoardingTimes] = useState<Record<number, string>>({});
 
   useEffect(() => {
     apiFetch(`${API_BASE_URL}/auth/me`)
@@ -1003,7 +1169,7 @@ export default function App() {
       setSelectedStudent(Number(value.split(":")[1]));
       setActiveState("Dashboard");
     } else {
-      const route = value.toLowerCase().replaceAll(" ", "-");
+      const route = value.toLowerCase().replace(/ /g, "-");
       setActiveState(value);
       window.history.pushState(null, "", `/${route}/`);
     }
@@ -1012,6 +1178,15 @@ export default function App() {
     setSelectedBookingId(id);
     setActiveState("Booking Details");
     window.history.pushState(null, "", `/booking-details/${id}/`);
+  };
+  const updateDriverStop = (index: number, status: string) => {
+    setDriverStops((current) => current.map((stop, stopIndex) => stopIndex === index ? { ...stop, state: status } : stop));
+    if (status === "Picked Up") {
+      setDriverBoardingTimes((current) => ({
+        ...current,
+        [index]: new Intl.DateTimeFormat("en-NZ", { hour: "2-digit", minute: "2-digit" }).format(new Date()),
+      }));
+    }
   };
 
   useEffect(() => {
@@ -1054,12 +1229,15 @@ export default function App() {
       if (active === "Manage Students") return <ManagementPage section="students" role={role} />;
     }
     if (role === "driver") {
-      if (active === "Dashboard" || active === "Assigned Journeys") return <DriverDashboard setActive={setActive} />;
-      if (active === "Complete Route" || active === "Journey Progress") return <DriverRoutePage />;
-      if (active === "Passenger List" || active === "Passenger Attendance") return <AttendancePage driver />;
+      if (active === "Dashboard") return <DriverDashboard setActive={setActive} stops={driverStops} />;
+      if (active === "Assigned Journeys") return <DriverAssignedJourneys setActive={setActive} />;
+      if (active === "Complete Route") return <DriverRoutePage stops={driverStops} boardingTimes={driverBoardingTimes} updateStop={updateDriverStop} />;
+      if (active === "Journey Progress") return <DriverJourneyProgress stops={driverStops} />;
+      if (active === "Passenger List") return <DriverPassengerList setActive={setActive} />;
+      if (active === "Passenger Attendance") return <AttendancePage driver />;
     }
     return <GenericPage title={active} />;
-  }, [active, role, fullName, selectedStudent, selectedBookingId]);
+  }, [active, role, fullName, selectedStudent, selectedBookingId, driverStops, driverBoardingTimes]);
 
   if (checkingSession) return <div className="loading-screen">Checking secure session...</div>;
   if (!loggedIn) return <Login onLogin={async (next, email, password, rememberMe) => {

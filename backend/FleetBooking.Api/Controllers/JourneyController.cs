@@ -16,8 +16,10 @@ public sealed class JourneyController(FleetDbContext database) : ControllerBase
     {
         var records = await (from attendance in database.PassengerAttendance
                               join student in database.StudentProfiles on attendance.StudentId equals student.Id
+                              join studentUser in database.Users on student.UserId equals (Guid?)studentUser.Id into studentUsers
+                              from studentUser in studentUsers.DefaultIfEmpty()
                               orderby student.StudentNumber
-                              select new AttendanceResponse(attendance.Id, student.StudentNumber, attendance.Status, attendance.RecordedAt))
+                              select new AttendanceResponse(attendance.Id, studentUser == null ? student.StudentNumber : studentUser.FullName, attendance.Status, attendance.RecordedAt))
             .AsNoTracking().ToListAsync(cancellationToken);
         return Ok(records);
     }
