@@ -43,6 +43,8 @@ jobs:
       - name: Publish deploy branch
         run: |
           cd site
+          mkdir -p tmp
+          date -u +"%Y%m%d%H%M%S" > tmp/restart.txt
           git init -q
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
