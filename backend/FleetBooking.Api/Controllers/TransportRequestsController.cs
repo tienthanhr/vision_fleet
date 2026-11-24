@@ -1,5 +1,6 @@
 using FleetBooking.Api.Data;
 using FleetBooking.Api.Models;
+using FleetBooking.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
@@ -203,13 +204,22 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
     [Authorize(Roles = "admin")]
     public async Task<ActionResult<AssignmentResponse>> Assign(Guid id, AssignmentRequest request, CancellationToken cancellationToken)
     {
-        var transportRequest = await database.TransportRequests.FindAsync([id], cancellationToken);
+        var transportRequest = await database.TransportRequests
+            .Include(item => item.Students).ThenInclude(item => item.Student).ThenInclude(item => item!.User)
+            .Include(item => item.Students).ThenInclude(item => item.Student).ThenInclude(item => item!.Addresses)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (transportRequest is null) return NotFound("The transport request was not found.");
+        if (transportRequest.Status != RequestStatus.Approved) return BadRequest("Approve the booking before assigning a driver and van.");
+        if (string.IsNullOrWhiteSpace(transportRequest.Destination)) return BadRequest("The booking must have a destination before assignment.");
+
+        var route = await database.Routes.Include(item => item.Stops)
+            .SingleOrDefaultAsync(item => item.RequestId == id, cancellationToken);
         var van = await database.Vans.FindAsync([request.VanId], cancellationToken);
         if (van is null || van.Status is VanStatus.Maintenance or VanStatus.Inactive) return BadRequest("The selected van is unavailable.");
+        if (van.Status == VanStatus.Assigned && route?.VanId != van.Id) return BadRequest("The selected van is already assigned to another booking.");
         var driver = await database.Users.SingleOrDefaultAsync(user => user.Id == request.DriverUserId && user.Role == UserRole.Driver && user.Status == "active", cancellationToken);
         if (driver is null) return BadRequest("The selected driver is not active.");
-        if (await database.TransportRequests.Include(item => item.Students).Where(item => item.Id == id).Select(item => item.Students.Count).SingleAsync(cancellationToken) > van.Capacity)
+        if (transportRequest.Students.Count > van.Capacity)
             return BadRequest("The van capacity is too small for this booking.");
         var profile = await database.DriverProfiles.SingleOrDefaultAsync(item => item.UserId == driver.Id, cancellationToken);
         if (profile is null)
@@ -217,11 +227,18 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
             profile = new DriverProfile { UserId = driver.Id };
             database.DriverProfiles.Add(profile);
         }
-        var route = await database.Routes.SingleOrDefaultAsync(item => item.RequestId == id, cancellationToken);
         if (route is null)
         {
             route = new FleetBooking.Api.Models.Route { RequestId = id };
             database.Routes.Add(route);
+        }
+        var routeSetupError = await JourneyRouteBuilder.EnsureStopsAndAttendanceAsync(database, route, transportRequest, cancellationToken);
+        if (routeSetupError is not null) return BadRequest(routeSetupError);
+
+        if (route.VanId is Guid previousVanId && previousVanId != van.Id)
+        {
+            var previousVan = await database.Vans.FindAsync([previousVanId], cancellationToken);
+            if (previousVan?.Status == VanStatus.Assigned) previousVan.Status = VanStatus.Available;
         }
         route.VanId = van.Id;
         route.DriverId = profile.Id;
