@@ -67,20 +67,27 @@ const profileNames: Record<Role, string> = {
 };
 
 type NavItem = { label: string; icon: IconName; adminOnly?: boolean };
-const portalNav: Record<"staff" | "driver", NavItem[]> = {
+const portalNav: Record<Role, NavItem[]> = {
+  admin: [
+    { label: "Dashboard", icon: "grid" },
+    { label: "Create Booking", icon: "plus" },
+    { label: "All Bookings", icon: "calendar" },
+    { label: "Route Planning", icon: "location" },
+    { label: "Live Monitoring", icon: "route" },
+    { label: "Available Vans", icon: "bus" },
+    { label: "Manage Vans", icon: "bus" },
+    { label: "Manage Drivers", icon: "user" },
+    { label: "Manage Students", icon: "users" },
+    { label: "Manage Guardians", icon: "shield" },
+    { label: "Manage Users", icon: "users" },
+  ],
   staff: [
     { label: "Dashboard", icon: "grid" },
     { label: "Create Booking", icon: "plus" },
     { label: "Available Vans", icon: "bus" },
     { label: "My Bookings", icon: "book" },
-    { label: "All Bookings", icon: "calendar", adminOnly: true },
-    { label: "Route Planning", icon: "location", adminOnly: true },
-    { label: "Live Monitoring", icon: "route", adminOnly: true },
-    { label: "Manage Vans", icon: "bus", adminOnly: true },
-    { label: "Manage Drivers", icon: "user", adminOnly: true },
     { label: "Manage Students", icon: "users" },
     { label: "Manage Guardians", icon: "shield" },
-    { label: "Manage Users", icon: "users", adminOnly: true },
   ],
   driver: [
     { label: "Dashboard", icon: "grid" },
@@ -182,8 +189,7 @@ function Logo() {
 }
 
 function Sidebar({ role, active, setActive, open, setOpen, onLogout }: { role: Role; active: string; setActive: (value: string) => void; open: boolean; setOpen: (value: boolean) => void; onLogout: () => void }) {
-  const group = role === "admin" || role === "staff" ? "staff" : "driver";
-  const visible = portalNav[group].filter((item) => !item.adminOnly || role === "admin");
+  const visible = portalNav[role];
   return <>
     {open && <div className="nav-overlay" onClick={() => setOpen(false)} />}
     <aside className={`sidebar ${open ? "open" : ""}`}>
@@ -926,7 +932,6 @@ export default function App() {
       "create-booking": "Create Booking",
       "available-vans": "Available Vans",
       "my-bookings": "My Bookings",
-      "transport-requests": "Transport Requests",
       "all-bookings": "All Bookings",
       "booking-details": "Booking Details",
       "route-planning": "Route Planning",
@@ -956,6 +961,11 @@ export default function App() {
         if (session) {
           setRole(session.role);
           setFullName(session.fullName);
+          setActiveState((current) => {
+            if (session.role === "admin" && current === "My Bookings") return "All Bookings";
+            if (session.role === "staff" && current === "All Bookings") return "My Bookings";
+            return current;
+          });
           setLoggedIn(true);
         }
       })
@@ -1001,7 +1011,7 @@ export default function App() {
   const page = useMemo(() => {
     if (role === "admin") {
       if (active === "Dashboard") return <StaffDashboard role={role} fullName={fullName} setActive={setActive} onDetails={openBookingDetails} />;
-      if (active === "Create Booking") return <CreateBooking onDone={() => setActive("My Bookings")} openRoute={() => setActive(role === "admin" ? "Route Planning" : "Transport Requests")} />;
+      if (active === "Create Booking") return <CreateBooking onDone={() => setActive("All Bookings")} openRoute={() => setActive("Route Planning")} />;
       if (active === "All Bookings") return <BookingsPage mine={false} onDetails={openBookingDetails} />;
       if (active === "Booking Details") return <BookingDetails role={role} bookingId={selectedBookingId} back={() => setActive(role === "admin" ? "All Bookings" : "My Bookings")} onUpdateBooking={() => setActive("Create Booking")} />;
       if (active === "Route Planning") return <RoutePlanning />;
@@ -1037,7 +1047,11 @@ export default function App() {
       if (!response.ok) return await response.text() || "Unable to sign in.";
       const session = await response.json() as { fullName: string; role: Role };
       setRole(session.role);
-      setActiveState("Dashboard");
+      setActiveState((current) => {
+        if (session.role === "admin" && current === "My Bookings") return "All Bookings";
+        if (session.role === "staff" && current === "All Bookings") return "My Bookings";
+        return "Dashboard";
+      });
       setFullName(session.fullName);
       setLoggedIn(true);
       return null;
