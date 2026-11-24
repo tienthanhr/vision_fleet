@@ -35,7 +35,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Publish backend into deploy tree
-        run: dotnet publish backend/FleetBooking.Api/FleetBooking.Api.csproj -c Release -o site
+        run: dotnet publish backend/FleetBooking.Api/FleetBooking.Api.csproj -c Release -o site -p:InformationalVersion=${GITHUB_SHA}
 
       - name: Copy frontend build into deploy tree
         run: cp -r dist/* site/

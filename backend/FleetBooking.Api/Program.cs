@@ -2,6 +2,7 @@ using FleetBooking.Api.Data;
 using FleetBooking.Api.Security;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
+using System.Reflection;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -110,11 +111,13 @@ app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
+var buildVersion = Assembly.GetExecutingAssembly()
+    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "local";
 app.MapGet("/health", () => Results.Ok(new
 {
     service = "Vision College Fleet Booking API",
     status = "running",
-    build = "2026-11-17-p6",
+    build = buildVersion,
     api = "/api",
     swagger = "/swagger"
 }));
