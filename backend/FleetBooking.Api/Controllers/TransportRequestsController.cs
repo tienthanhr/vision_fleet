@@ -63,6 +63,30 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
             .Include(item => item.Students).ThenInclude(item => item.Student).ThenInclude(item => item!.Addresses)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (request is null) return NotFound("The transport request was not found.");
+
+        var route = await database.Routes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.RequestId == id, cancellationToken);
+        string? vanRegistration = null;
+        string? driverName = null;
+        if (route?.VanId is Guid vanId)
+        {
+            vanRegistration = await database.Vans
+                .AsNoTracking()
+                .Where(item => item.Id == vanId)
+                .Select(item => item.RegistrationNumber)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+        if (route?.DriverId is Guid driverProfileId)
+        {
+            driverName = await database.DriverProfiles
+                .AsNoTracking()
+                .Include(item => item.User)
+                .Where(item => item.Id == driverProfileId)
+                .Select(item => item.User != null ? item.User.FullName : null)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
         return Ok(new TransportRequestDetailResponse(
             request.Id,
             request.Title,
@@ -74,6 +98,8 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
             request.Destination,
             request.Status,
             request.CreatedBy?.FullName,
+            vanRegistration,
+            driverName,
             request.CreatedAt,
             request.Students.Select(item => new RequestStudentResponse(
                 item.StudentId,
@@ -293,6 +319,8 @@ public sealed record TransportRequestDetailResponse(
     string Destination,
     RequestStatus Status,
     string? CreatedBy,
+    string? VanRegistration,
+    string? DriverName,
     DateTimeOffset CreatedAt,
     IEnumerable<RequestStudentResponse> Students);
 
