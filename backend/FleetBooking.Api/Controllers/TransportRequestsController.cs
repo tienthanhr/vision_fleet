@@ -84,16 +84,28 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
 
     [HttpPost]
     public async Task<ActionResult<TransportRequestResponse>> Create(
-        CreateTransportRequest request,
+        [FromBody] CreateTransportRequest request,
         CancellationToken cancellationToken)
     {
-        var journeyDateTime = request.JourneyDate.ToDateTime(request.PlannedStartTime);
+        if (!DateOnly.TryParseExact(request.JourneyDate, "yyyy-MM-dd", out var journeyDate))
+            return BadRequest("Journey date must use YYYY-MM-DD format.");
+        if (!TimeOnly.TryParseExact(request.PlannedStartTime, "HH:mm", out var plannedStartTime))
+            return BadRequest("Departure time must use HH:mm format.");
+        TimeOnly? plannedEndTime = null;
+        if (!string.IsNullOrWhiteSpace(request.PlannedEndTime))
+        {
+            if (!TimeOnly.TryParseExact(request.PlannedEndTime, "HH:mm", out var parsedEndTime))
+                return BadRequest("Return time must use HH:mm format.");
+            plannedEndTime = parsedEndTime;
+        }
+
+        var journeyDateTime = journeyDate.ToDateTime(plannedStartTime);
         var minimumNotice = DateTimeOffset.UtcNow.AddHours(48);
         if (journeyDateTime.ToUniversalTime() < minimumNotice.UtcDateTime)
             return BadRequest("Departure must be at least 48 hours in the future.");
-        if (request.PlannedEndTime is TimeOnly endTime)
+        if (plannedEndTime is TimeOnly endTime)
         {
-            var endDateTime = request.JourneyDate.ToDateTime(endTime);
+            var endDateTime = journeyDate.ToDateTime(endTime);
             if (endDateTime < journeyDateTime)
                 return BadRequest("The expected return time cannot be before the departure time.");
         }
@@ -120,9 +132,9 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
             JourneyType = request.JourneyType,
             Title = request.Title,
             Description = request.Description,
-            JourneyDate = request.JourneyDate,
-            PlannedStartTime = request.PlannedStartTime,
-            PlannedEndTime = request.PlannedEndTime,
+            JourneyDate = journeyDate,
+            PlannedStartTime = plannedStartTime,
+            PlannedEndTime = plannedEndTime,
             StandardPickupLocation = request.StandardPickupLocation,
             Destination = request.Destination,
             Students = studentIds.Select(studentId => new RequestStudent { StudentId = studentId }).ToList()
@@ -249,9 +261,9 @@ public sealed record CreateTransportRequest(
     JourneyType JourneyType,
     string Title,
     string? Description,
-    DateOnly JourneyDate,
-    TimeOnly PlannedStartTime,
-    TimeOnly? PlannedEndTime,
+    string JourneyDate,
+    string PlannedStartTime,
+    string? PlannedEndTime,
     string? StandardPickupLocation,
     string Destination,
     IReadOnlyCollection<Guid> StudentIds);
