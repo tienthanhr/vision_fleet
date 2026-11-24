@@ -74,7 +74,6 @@ const portalNav: Record<Role, NavItem[]> = {
     { label: "All Bookings", icon: "calendar" },
     { label: "Route Planning", icon: "location" },
     { label: "Live Monitoring", icon: "route" },
-    { label: "Available Vans", icon: "bus" },
     { label: "Manage Vans", icon: "bus" },
     { label: "Manage Drivers", icon: "user" },
     { label: "Manage Students", icon: "users" },
@@ -323,7 +322,7 @@ function StaffDashboard({ role, fullName, setActive, onDetails }: { role: Role; 
           <div className="panel-head"><div><h2>Needs attention</h2><p>Pending actions</p></div><span className="count-badge">{pending.length + summary.maintenanceVans}</span></div>
           <div className="attention-list">
             <button onClick={() => setActive(isAdmin ? "All Bookings" : "My Bookings")}><span className="attention-icon amber"><Icon name="clock" /></span><span><strong>{pending.length === 0 ? "No bookings await review" : pending.length === 1 ? "1 booking awaits review" : `${pending.length} bookings await review`}</strong><small>{pending.length === 0 ? "All caught up" : `Oldest submitted ${relativeTime(oldestPending) || "recently"}`}</small></span><Icon name="arrow" /></button>
-            <button onClick={() => setActive("Available Vans")}><span className="attention-icon blue"><Icon name="bus" /></span><span><strong>{summary.maintenanceVans === 0 ? "No vans in maintenance" : `${summary.maintenanceVans} ${summary.maintenanceVans === 1 ? "van is" : "vans are"} in maintenance`}</strong><small>Update status in Manage Vans</small></span><Icon name="arrow" /></button>
+            <button onClick={() => setActive(isAdmin ? "Manage Vans" : "Available Vans")}><span className="attention-icon blue"><Icon name="bus" /></span><span><strong>{summary.maintenanceVans === 0 ? "No vans in maintenance" : `${summary.maintenanceVans} ${summary.maintenanceVans === 1 ? "van is" : "vans are"} in maintenance`}</strong><small>{isAdmin ? "Update status in Manage Vans" : "View fleet availability"}</small></span><Icon name="arrow" /></button>
           </div>
         </section>
         <section className="panel availability-card"><div className="panel-head"><div><h2>Fleet availability</h2><p>Live vehicle status</p></div></div><div className="donut-row"><div className="donut"><div><strong>{summary.totalVans}</strong><span>Total</span></div></div><div className="legend"><span><i className="green-dot" />Available <b>{summary.availableVans}</b></span><span><i className="navy-dot" />On journey <b>{summary.onJourneyVans}</b></span><span><i className="grey-dot" />Maintenance <b>{summary.maintenanceVans}</b></span></div></div></section>
@@ -1016,7 +1015,6 @@ export default function App() {
       if (active === "Booking Details") return <BookingDetails role={role} bookingId={selectedBookingId} back={() => setActive(role === "admin" ? "All Bookings" : "My Bookings")} onUpdateBooking={() => setActive("Create Booking")} />;
       if (active === "Route Planning") return <RoutePlanning />;
       if (active === "Live Monitoring") return <RoutePlanning monitor />;
-      if (active === "Available Vans") return <FleetPage readOnly />;
       if (active === "Manage Vans") return <FleetPage />;
       if (active === "Manage Users") return <FleetPage users />;
       if (active === "Manage Drivers") return <ManagementPage section="drivers" role={role} />;
