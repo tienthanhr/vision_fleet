@@ -328,7 +328,7 @@ function StaffDashboard({ role, fullName, setActive, onDetails }: { role: Role; 
 }
 
 function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: () => void }) {
-  const [journeyType, setJourneyType] = useState<"standard" | "student" | null>(null);
+  const [journeyType, setJourneyType] = useState<"standard" | "student" | null>("standard");
   const [submitted, setSubmitted] = useState(false);
   const [submittedId, setSubmittedId] = useState("");
   const [error, setError] = useState("");
@@ -378,7 +378,7 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
       <button className="journey-type-card panel" onClick={() => setJourneyType("standard")}><span className="journey-type-icon"><Icon name="bus" size={28} /></span><Status>Standard Van Booking</Status><h2>Standard van booking</h2><p>Book an available van for one pickup, one destination and a passenger group.</p><ul><li>Choose an available van</li><li>Add journey details and passengers</li><li>Submit for administrator approval</li></ul><span className="type-action">Continue with standard booking <Icon name="arrow" /></span></button>
       <button className="journey-type-card panel featured" onClick={() => setJourneyType("student")}><span className="journey-type-icon green"><Icon name="route" size={28} /></span><Status>Student Home Pickup</Status><h2>Student home pickup & drop-off</h2><p>Arrange a multi-stop journey using students’ confirmed saved home addresses.</p><ul><li>Select one or more students</li><li>Confirm private home addresses</li><li>Automatically generate a route</li></ul><span className="type-action">Plan student transport <Icon name="arrow" /></span></button>
     </div>
-    <div className="privacy-banner"><Icon name="shield" /><div><strong>Home transport is optional</strong><span>Standard fleet bookings continue to use the existing one-pickup workflow and never require student home addresses.</span></div></div>
+    <div className="privacy-banner"><Icon name="shield" /><div><strong>Student home pickup is a future enhancement</strong><span>The standard van booking workflow is the implemented MVP. Home pickup shown here is mock-only and does not create a database booking or real route.</span></div></div>
   </>;
   if (journeyType === "student") return <StudentTransportForm back={() => setJourneyType(null)} openRoute={openRoute} />;
   return <>
@@ -456,15 +456,28 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
 function StudentTransportForm({ back, openRoute }: { back: () => void; openRoute: () => void }) {
   const [selected, setSelected] = useState([0, 1, 2]);
   const [destination, setDestination] = useState(formatPresetLocation(presetLocations[0]));
+  const [mockSubmitted, setMockSubmitted] = useState(false);
   const minimumBookingDate = futureBookingDate();
   const [journeyDate, setJourneyDate] = useState(minimumBookingDate);
   const toggleStudent = (index: number) => setSelected(selected.includes(index) ? selected.filter((item) => item !== index) : [...selected, index]);
+  if (mockSubmitted) return (
+    <div className="booking-success-page">
+      <section className="success-state booking-success-card" aria-live="polite">
+        <div className="success-icon"><Icon name="route" size={34} /></div>
+        <span className="eyebrow">FUTURE ENHANCEMENT PREVIEW</span>
+        <h1>Mock route preview generated</h1>
+        <p className="booking-success-message">This preview demonstrates home-pickup flow only. No booking or route was saved to the database.</p>
+        <div className="booking-success-status"><span>Scope</span><Status>Mock Preview</Status></div>
+        <button className="primary-button booking-success-button" onClick={back}><Icon name="arrow" size={17} /> Back to journey types</button>
+      </section>
+    </div>
+  );
   return <>
     <button className="back-button" onClick={back}>← Change journey type</button>
-    <PageTitle eyebrow="STUDENT HOME TRANSPORT" title="Plan pickup and drop-off" subtitle="Select students, confirm their saved addresses and set the required arrival time." action={<Status>Student Home Pickup</Status>} />
+    <PageTitle eyebrow="FUTURE ENHANCEMENT PREVIEW" title="Plan pickup and drop-off" subtitle="Mock-only preview: this workflow is planned for after the MVP. It does not create a live booking or route." action={<Status>Mock Preview</Status>} />
     <div className="transport-stepper"><span className="active"><b>1</b>Select students</span><i /><span className="active"><b>2</b>Confirm addresses</span><i /><span><b>3</b>Journey details</span><i /><span><b>4</b>Generate route</span></div>
     <div className="form-layout">
-      <form className="panel booking-form" onSubmit={(event) => { event.preventDefault(); openRoute(); }}>
+      <form className="panel booking-form" onSubmit={(event) => { event.preventDefault(); setMockSubmitted(true); }}>
         <div className="form-section"><div className="section-number">1</div><div><h2>Select students</h2><p>Only authorised staff can view saved home addresses.</p></div></div>
         <div className="student-check-grid">{students.map((student, index) => <label className={`student-check ${selected.includes(index) ? "selected" : ""}`} key={student.id}><input type="checkbox" checked={selected.includes(index)} onChange={() => toggleStudent(index)} /><span className={`student-avatar ${student.color}`}>{student.initials}</span><span><strong>{student.name}</strong><small>{student.id}</small></span><Icon name="check" /></label>)}</div>
         <div className="form-divider" />
@@ -480,7 +493,7 @@ function StudentTransportForm({ back, openRoute }: { back: () => void; openRoute
           <label>Destination<select value={destination} onChange={(event) => setDestination(event.target.value)}>{presetLocations.map((location) => <option value={formatPresetLocation(location)} key={location.name}>{formatPresetLocation(location)}</option>)}</select></label>
           <label className="full">Special instructions<textarea rows={3} defaultValue="Call guardian two minutes before arrival. Ama requires assistance with her equipment bag." /></label>
         </div>
-        <div className="form-actions"><button type="button" className="secondary-button">Save draft</button><button className="primary-button" type="submit"><Icon name="route" size={17} /> Generate suitable route</button></div>
+        <div className="form-actions"><button type="button" className="secondary-button" disabled>Mock save draft</button><button className="primary-button" type="submit"><Icon name="route" size={17} /> Generate mock route preview</button></div>
       </form>
       <aside className="side-stack single-column"><section className="panel transport-summary"><h2>Request summary</h2><div><span>Students</span><strong>{selected.length}</strong></div><div><span>Confirmed addresses</span><strong>{selected.length} of {selected.length}</strong></div><div><span>Journey type</span><strong>Morning pickup</strong></div><div><span>Required arrival</span><strong>08:20 AM</strong></div></section><section className="panel form-tip"><Icon name="shield" /><h3>Private address access</h3><p>Student home details are visible only to authorised administrators and the assigned driver. Families see only their own saved address and timing.</p></section></aside>
     </div>
