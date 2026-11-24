@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using FleetBooking.Api.Data;
 using FleetBooking.Api.Models;
-using FleetBooking.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
@@ -15,12 +14,7 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
 {
     [HttpGet("assigned")]
     [Authorize(Roles = "driver")]
-    public Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssigned(CancellationToken cancellationToken) =>
-        GetAssignedAsync(cancellationToken, retryOnConcurrency: true);
-
-    private async Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssignedAsync(
-        CancellationToken cancellationToken,
-        bool retryOnConcurrency)
+    public async Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssigned(CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userId, out var parsedUserId)) return Unauthorized();
@@ -30,56 +24,17 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
             .SingleOrDefaultAsync(cancellationToken);
         if (driverProfileId is null) return Ok(Array.Empty<AssignedJourneyResponse>());
 
-        var lockName = $"fleet-journey-backfill-{driverProfileId.Value:N}";
-        await database.Database.OpenConnectionAsync(cancellationToken);
-        var lockAcquired = false;
-        try
-        {
-            var lockResult = await database.Database
-                .SqlQueryRaw<int>("SELECT COALESCE(GET_LOCK({0}, 15), 0) AS Value", lockName)
-                .SingleAsync(cancellationToken);
-            if (lockResult != 1)
-            {
-                logger.LogWarning("Timed out waiting to backfill assigned journeys for driver {DriverProfileId}.", driverProfileId);
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, "Journey data is being prepared. Retry shortly.");
-            }
-
-            lockAcquired = true;
-            return await GetAssignedUnderLockAsync(driverProfileId.Value, cancellationToken, retryOnConcurrency);
-        }
-        finally
-        {
-            try
-            {
-                if (lockAcquired)
-                {
-                    await database.Database
-                        .SqlQueryRaw<int>("SELECT COALESCE(RELEASE_LOCK({0}), 0) AS Value", lockName)
-                        .SingleAsync(cancellationToken);
-                }
-            }
-            finally
-            {
-                await database.Database.CloseConnectionAsync();
-            }
-        }
-    }
-
-    private async Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssignedUnderLockAsync(
-        Guid driverProfileId,
-        CancellationToken cancellationToken,
-        bool retryOnConcurrency)
-    {
         var routes = await database.Routes
+            .AsNoTracking()
             .Include(item => item.Stops)
-            .Where(item => item.DriverId == driverProfileId)
+            .Where(item => item.DriverId == driverProfileId.Value)
             .ToListAsync(cancellationToken);
         if (routes.Count == 0) return Ok(Array.Empty<AssignedJourneyResponse>());
 
         var requestIds = routes.Select(item => item.RequestId).Distinct().ToArray();
         var requests = await database.TransportRequests
-            .Include(item => item.Students).ThenInclude(item => item.Student).ThenInclude(item => item!.User)
-            .Include(item => item.Students).ThenInclude(item => item.Student).ThenInclude(item => item!.Addresses)
+            .AsNoTracking()
+            .Include(item => item.Students)
             .Where(item => requestIds.Contains(item.Id))
             .ToListAsync(cancellationToken);
         var requestsById = requests.ToDictionary(item => item.Id);
@@ -88,33 +43,6 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
                 && request.Status is not RequestStatus.Cancelled and not RequestStatus.Declined)
             .ToList();
         if (routes.Count == 0) return Ok(Array.Empty<AssignedJourneyResponse>());
-
-        var setupWarnings = new Dictionary<Guid, string>();
-        foreach (var route in routes)
-        {
-            var setupError = await JourneyRouteBuilder.EnsureStopsAndAttendanceAsync(
-                database, route, requestsById[route.RequestId], cancellationToken);
-            if (setupError is not null)
-            {
-                setupWarnings[route.Id] = setupError;
-                logger.LogWarning("Assigned journey {RouteId} needs administrator attention: {SetupWarning}", route.Id, setupError);
-            }
-        }
-        try
-        {
-            await database.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException exception) when (retryOnConcurrency)
-        {
-            logger.LogWarning(exception, "Retrying assigned journey backfill after a concurrent database update.");
-            database.ChangeTracker.Clear();
-            return await GetAssignedUnderLockAsync(driverProfileId, cancellationToken, retryOnConcurrency: false);
-        }
-        catch (DbUpdateConcurrencyException exception)
-        {
-            logger.LogError(exception, "Assigned journey backfill failed after retrying a concurrent database update.");
-            return Conflict("Assigned journey data changed while it was loading. Refresh and try again.");
-        }
 
         var stopIds = routes.SelectMany(item => item.Stops.Select(stop => stop.Id)).ToArray();
         var passengers = await (
@@ -136,6 +64,32 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
         var vans = await database.Vans.AsNoTracking()
             .Where(item => vanIds.Contains(item.Id))
             .ToDictionaryAsync(item => item.Id, cancellationToken);
+        var passengerKeys = passengers
+            .Select(passenger => (passenger.StudentId, passenger.RouteStopId))
+            .ToHashSet();
+        var setupWarnings = new Dictionary<Guid, string>();
+        foreach (var route in routes)
+        {
+            var request = requestsById[route.RequestId];
+            var routeStopIds = route.Stops.Select(stop => stop.Id).ToHashSet();
+            string? setupWarning = null;
+            if (string.IsNullOrWhiteSpace(request.Destination))
+                setupWarning = "A destination is missing. Ask an administrator to review this booking.";
+            else if (route.Stops.Count == 0)
+                setupWarning = "This assigned journey has no route stops. Ask an administrator to save the assignment again.";
+            else if (request.Students.Count > 0
+                && !route.Stops.Any(stop => !SameAddress(stop.Address, request.Destination)))
+                setupWarning = "This assigned journey has no pickup stop. Ask an administrator to review the route.";
+            else if (request.Students.Any(student => !passengerKeys.Any(key =>
+                key.StudentId == student.StudentId && routeStopIds.Contains(key.RouteStopId))))
+                setupWarning = "Passenger attendance data is incomplete. Ask an administrator to save the assignment again.";
+
+            if (setupWarning is not null)
+            {
+                setupWarnings[route.Id] = setupWarning;
+                logger.LogWarning("Assigned journey {RouteId} needs administrator attention: {SetupWarning}", route.Id, setupWarning);
+            }
+        }
 
         var response = routes
             .OrderByDescending(item => item.Status == "active")
