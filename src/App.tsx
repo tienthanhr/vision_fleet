@@ -110,6 +110,7 @@ const students = [
 ];
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5075/api";
+const DRIVER_JOURNEY_STORAGE_KEY = "vision-fleet:selected-driver-journey";
 const DEMO_ADMIN_ID = "00000000-0000-0000-0000-000000000001";
 
 const presetLocations = [
@@ -255,8 +256,9 @@ function Logo() {
   return <div className="logo"><img src="https://visioncollege.ac.nz/img/logo.svg" alt="Vision College" /><div><strong>Fleet Booking</strong><small>Transport Management</small></div></div>;
 }
 
-function Sidebar({ role, active, setActive, open, setOpen, onLogout }: { role: Role; active: string; setActive: (value: string) => void; open: boolean; setOpen: (value: boolean) => void; onLogout: () => void }) {
+function Sidebar({ role, active, open, setOpen, onLogout }: { role: Role; active: string; open: boolean; setOpen: (value: boolean) => void; onLogout: () => void }) {
   const visible = portalNav[role];
+  const hrefFor = (label: string) => `/${label.toLowerCase().replace(/ /g, "-")}/`;
   return <>
     {open && <div className="nav-overlay" onClick={() => setOpen(false)} />}
     <aside className={`sidebar ${open ? "open" : ""}`}>
@@ -264,10 +266,10 @@ function Sidebar({ role, active, setActive, open, setOpen, onLogout }: { role: R
       <div className="portal-tag"><Icon name="shield" size={16} /><div><span>{roleNames[role]} portal</span><small>Secure access</small></div></div>
       <nav>
         <span className="nav-label">MAIN MENU</span>
-        {visible.map((item) => <button type="button" key={item.label} className={`nav-item ${active === item.label ? "active" : ""}`} onClick={() => { setActive(item.label); setOpen(false); }}><Icon name={item.icon} /><span>{item.label}</span>{item.adminOnly && <i>ADMIN</i>}</button>)}
+        {visible.map((item) => <a href={hrefFor(item.label)} key={item.label} aria-current={active === item.label ? "page" : undefined} className={`nav-item ${active === item.label ? "active" : ""}`}><Icon name={item.icon} /><span>{item.label}</span>{item.adminOnly && <i>ADMIN</i>}</a>)}
       </nav>
       <div className="sidebar-foot">
-        <button type="button" className="nav-item" onClick={() => setActive("Profile")}><Icon name="user" /><span>My Profile</span></button>
+        <a href={hrefFor("Profile")} aria-current={active === "Profile" ? "page" : undefined} className={`nav-item ${active === "Profile" ? "active" : ""}`}><Icon name="user" /><span>My Profile</span></a>
         <button type="button" className="nav-item" onClick={onLogout}><Icon name="logout" /><span>Sign out</span></button>
         <div className="privacy"><Icon name="shield" size={17} /><span>Your data is protected by role-based access.</span></div>
       </div>
@@ -399,8 +401,7 @@ function StaffDashboard({ role, fullName, setActive, onDetails }: { role: Role; 
   </>;
 }
 
-function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: () => void }) {
-  const [journeyType, setJourneyType] = useState<"standard" | "student" | null>("standard");
+function CreateBooking({ onDone }: { onDone: () => void }) {
   const [submitted, setSubmitted] = useState(false);
   const [submittedId, setSubmittedId] = useState("");
   const [error, setError] = useState("");
@@ -444,15 +445,7 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
       </section>
     </div>
   );
-  if (!journeyType) return <>
-    <PageTitle eyebrow="NEW REQUEST" title="What type of journey do you need?" subtitle="Choose a standard fleet booking or arrange home transport for one or more students." />
-    <div className="journey-type-grid">
-      <button className="journey-type-card panel" onClick={() => setJourneyType("standard")}><span className="journey-type-icon"><Icon name="bus" size={28} /></span><Status>Standard Van Booking</Status><h2>Standard van booking</h2><p>Book an available van for one pickup, one destination and a passenger group.</p><ul><li>Choose an available van</li><li>Add journey details and passengers</li><li>Submit for administrator approval</li></ul><span className="type-action">Continue with standard booking <Icon name="arrow" /></span></button>
-    </div>
-  </>;
-  if (journeyType === "student") return <StudentTransportForm back={() => setJourneyType(null)} openRoute={openRoute} />;
   return <>
-    <button className="back-button" onClick={() => setJourneyType(null)}>← Change journey type</button>
     <PageTitle eyebrow="STANDARD VAN BOOKING" title="Create a van booking" subtitle="Use the existing one-pickup workflow for a college journey." action={<Status>Standard Van Booking</Status>} />
     <div className="form-layout">
       <form className="panel booking-form" onSubmit={async (e: FormEvent<HTMLFormElement>) => {
@@ -519,53 +512,6 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
         <div className="form-actions"><button type="button" className="secondary-button">Save as draft</button><button className="primary-button" type="submit" disabled={saving}>{saving ? "Saving to database..." : <>Submit request <Icon name="arrow" size={17} /></>}</button></div>
       </form>
       <aside className="panel form-tip"><Icon name="shield" /><h3>Before you submit</h3><p>Requests should be made at least 48 hours before departure. An administrator will assign a van and driver after approval.</p><div><Icon name="check" size={16} />Check journey dates and times</div><div><Icon name="check" size={16} />Confirm all passengers</div><div><Icon name="check" size={16} />Include accessibility needs</div></aside>
-    </div>
-  </>;
-}
-
-function StudentTransportForm({ back, openRoute }: { back: () => void; openRoute: () => void }) {
-  const [selected, setSelected] = useState([0, 1, 2]);
-  const [destination, setDestination] = useState(formatPresetLocation(presetLocations[0]));
-  const [mockSubmitted, setMockSubmitted] = useState(false);
-  const minimumBookingDate = futureBookingDate();
-  const [journeyDate, setJourneyDate] = useState(minimumBookingDate);
-  const toggleStudent = (index: number) => setSelected(selected.includes(index) ? selected.filter((item) => item !== index) : [...selected, index]);
-  if (mockSubmitted) return (
-    <div className="booking-success-page">
-      <section className="success-state booking-success-card" aria-live="polite">
-        <div className="success-icon"><Icon name="route" size={34} /></div>
-        <span className="eyebrow">FUTURE ENHANCEMENT PREVIEW</span>
-        <h1>Mock route preview generated</h1>
-        <p className="booking-success-message">This preview demonstrates home-pickup flow only. No booking or route was saved to the database.</p>
-        <div className="booking-success-status"><span>Scope</span><Status>Mock Preview</Status></div>
-        <button className="primary-button booking-success-button" onClick={back}><Icon name="arrow" size={17} /> Back to journey types</button>
-      </section>
-    </div>
-  );
-  return <>
-    <button className="back-button" onClick={back}>← Change journey type</button>
-    <PageTitle eyebrow="FUTURE ENHANCEMENT PREVIEW" title="Plan pickup and drop-off" subtitle="Mock-only preview: this workflow is planned for after the MVP. It does not create a live booking or route." action={<Status>Mock Preview</Status>} />
-    <div className="transport-stepper"><span className="active"><b>1</b>Select students</span><i /><span className="active"><b>2</b>Confirm addresses</span><i /><span><b>3</b>Journey details</span><i /><span><b>4</b>Generate route</span></div>
-    <div className="form-layout">
-      <form className="panel booking-form" onSubmit={(event) => { event.preventDefault(); setMockSubmitted(true); }}>
-        <div className="form-section"><div className="section-number">1</div><div><h2>Select students</h2><p>Only authorised staff can view saved home addresses.</p></div></div>
-        <div className="student-check-grid">{students.map((student, index) => <label className={`student-check ${selected.includes(index) ? "selected" : ""}`} key={student.id}><input type="checkbox" checked={selected.includes(index)} onChange={() => toggleStudent(index)} /><span className={`student-avatar ${student.color}`}>{student.initials}</span><span><strong>{student.name}</strong><small>{student.id}</small></span><Icon name="check" /></label>)}</div>
-        <div className="form-divider" />
-        <div className="form-section"><div className="section-number">2</div><div><h2>Confirm home pickup addresses</h2><p>Confirm each saved address before route generation.</p></div></div>
-        <div className="address-list">{students.filter((_, index) => selected.includes(index)).map((student) => <div className="address-row" key={student.id}><div className={`avatar student-${student.color}`}>{student.initials}</div><div><strong>{student.name}</strong><span><Icon name="location" size={13} /> {student.home}</span></div><label><input type="checkbox" defaultChecked /> Confirmed</label></div>)}</div>
-        <div className="form-divider" />
-        <div className="form-section"><div className="section-number">3</div><div><h2>Journey details</h2><p>Times will be used to calculate a practical stop order.</p></div></div>
-        <div className="form-grid">
-          <label className="full">Transport direction<select defaultValue="morning"><option value="morning">Morning pickup</option><option>Return drop-off</option><option>One-way pickup</option><option>One-way drop-off</option><option>Return journey</option></select></label>
-          <label>Journey date<input type="date" min={minimumBookingDate} value={journeyDate} onChange={(event) => setJourneyDate(event.target.value)} /></label>
-          <label>Required arrival time<input type="time" defaultValue="08:20" /></label>
-          <label>Planned first pickup<input type="time" defaultValue="07:30" /></label>
-          <label>Destination<select value={destination} onChange={(event) => setDestination(event.target.value)}>{presetLocations.map((location) => <option value={formatPresetLocation(location)} key={location.name}>{formatPresetLocation(location)}</option>)}</select></label>
-          <label className="full">Special instructions<textarea rows={3} defaultValue="Call guardian two minutes before arrival. Ama requires assistance with her equipment bag." /></label>
-        </div>
-        <div className="form-actions"><button type="button" className="secondary-button" disabled>Mock save draft</button><button className="primary-button" type="submit"><Icon name="route" size={17} /> Generate mock route preview</button></div>
-      </form>
-      <aside className="side-stack single-column"><section className="panel transport-summary"><h2>Request summary</h2><div><span>Students</span><strong>{selected.length}</strong></div><div><span>Confirmed addresses</span><strong>{selected.length} of {selected.length}</strong></div><div><span>Journey type</span><strong>Morning pickup</strong></div><div><span>Required arrival</span><strong>08:20 AM</strong></div></section><section className="panel form-tip"><Icon name="shield" /><h3>Private address access</h3><p>Student home details are visible only to authorised administrators and the assigned driver. Families see only their own saved address and timing.</p></section></aside>
     </div>
   </>;
 }
@@ -1219,7 +1165,9 @@ export default function App() {
   const [driverDataError, setDriverDataError] = useState("");
   const [driverSavingAttendanceId, setDriverSavingAttendanceId] = useState<string | null>(null);
   const [driverActionBusyId, setDriverActionBusyId] = useState<string | null>(null);
-  const [selectedDriverJourneyId, setSelectedDriverJourneyId] = useState("");
+  const [selectedDriverJourneyId, setSelectedDriverJourneyId] = useState(
+    () => window.sessionStorage.getItem(DRIVER_JOURNEY_STORAGE_KEY) ?? "",
+  );
   const [driverRefreshVersion, setDriverRefreshVersion] = useState(0);
 
   useEffect(() => {
@@ -1241,7 +1189,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!loggedIn || role !== "driver") {
+    if (!loggedIn) {
+      setDriverJourneys([]);
+      setDriverJourneysLoading(false);
+      setDriverDataError("");
+      return;
+    }
+
+    if (role !== "driver") {
       setDriverJourneys([]);
       setSelectedDriverJourneyId("");
       setDriverJourneysLoading(false);
@@ -1274,6 +1229,14 @@ export default function App() {
 
     return () => { active = false; };
   }, [loggedIn, role, driverRefreshVersion]);
+
+  useEffect(() => {
+    if (selectedDriverJourneyId) {
+      window.sessionStorage.setItem(DRIVER_JOURNEY_STORAGE_KEY, selectedDriverJourneyId);
+    } else {
+      window.sessionStorage.removeItem(DRIVER_JOURNEY_STORAGE_KEY);
+    }
+  }, [selectedDriverJourneyId]);
 
   const setActive = (value: string) => {
     if (value.startsWith("student:")) {
@@ -1378,7 +1341,7 @@ export default function App() {
   const page = useMemo(() => {
     if (role === "admin") {
       if (active === "Dashboard") return <StaffDashboard role={role} fullName={fullName} setActive={setActive} onDetails={openBookingDetails} />;
-      if (active === "Create Booking") return <CreateBooking onDone={() => setActive("All Bookings")} openRoute={() => setActive("All Bookings")} />;
+      if (active === "Create Booking") return <CreateBooking onDone={() => setActive("All Bookings")} />;
       if (active === "All Bookings") return <BookingsPage mine={false} onDetails={openBookingDetails} />;
       if (active === "Booking Details") return <BookingDetails role={role} bookingId={selectedBookingId} back={() => setActive(role === "admin" ? "All Bookings" : "My Bookings")} onUpdateBooking={() => setActive("Create Booking")} />;
       if (active === "Manage Vans") return <FleetPage />;
@@ -1388,7 +1351,7 @@ export default function App() {
     }
     if (role === "staff") {
       if (active === "Dashboard") return <StaffDashboard role={role} fullName={fullName} setActive={setActive} onDetails={openBookingDetails} />;
-      if (active === "Create Booking") return <CreateBooking onDone={() => setActive("My Bookings")} openRoute={() => setActive("My Bookings")} />;
+      if (active === "Create Booking") return <CreateBooking onDone={() => setActive("My Bookings")} />;
       if (active === "Available Vans") return <FleetPage readOnly />;
       if (active === "My Bookings") return <BookingsPage mine={true} onDetails={openBookingDetails} />;
       if (active === "Booking Details") return <BookingDetails role={role} bookingId={selectedBookingId} back={() => setActive("My Bookings")} onUpdateBooking={() => setActive("Create Booking")} />;
@@ -1425,5 +1388,5 @@ export default function App() {
     }
   }} />;
 
-  return <div className="app-shell"><Sidebar role={role} active={active} setActive={setActive} open={menuOpen} setOpen={setMenuOpen} onLogout={async () => { await apiFetch(`${API_BASE_URL}/auth/logout`, { method: "POST" }); setLoggedIn(false); }} /><div className="main-shell"><Header role={role} fullName={fullName} setOpen={setMenuOpen} /><main className="page-content">{page}</main><footer><span>© 2025 Vision College School of ICT</span><span>Fleet Operations · Secure portal</span></footer></div></div>;
+  return <div className="app-shell"><Sidebar role={role} active={active} open={menuOpen} setOpen={setMenuOpen} onLogout={async () => { await apiFetch(`${API_BASE_URL}/auth/logout`, { method: "POST" }); window.sessionStorage.removeItem(DRIVER_JOURNEY_STORAGE_KEY); setSelectedDriverJourneyId(""); setLoggedIn(false); }} /><div className="main-shell"><Header role={role} fullName={fullName} setOpen={setMenuOpen} /><main className="page-content">{page}</main><footer><span>© 2025 Vision College School of ICT</span><span>Fleet Operations · Secure portal</span></footer></div></div>;
 }
