@@ -129,6 +129,11 @@ const formatDateInput = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const formatTimeForApi = (time: string) => {
+  if (!time) return null;
+  return time.length === 5 ? `${time}:00` : time;
+};
+
 const futureBookingDate = () => {
   const date = new Date();
   date.setDate(date.getDate() + 2);
@@ -387,8 +392,8 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
           title: String(form.get("title") ?? ""),
           description: String(form.get("notes") ?? ""),
           journeyDate: String(form.get("journeyDate") ?? ""),
-          plannedStartTime: String(form.get("startTime") ?? ""),
-          plannedEndTime: String(form.get("endTime") ?? "") || null,
+          plannedStartTime: formatTimeForApi(String(form.get("startTime") ?? "")),
+          plannedEndTime: formatTimeForApi(String(form.get("endTime") ?? "")),
           standardPickupLocation: String(form.get("pickup") ?? ""),
           destination: String(form.get("destination") ?? ""),
           studentIds: selectedStudentIds,

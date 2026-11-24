@@ -89,13 +89,13 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
     {
         if (!DateOnly.TryParseExact(request.JourneyDate, "yyyy-MM-dd", out var journeyDate))
             return BadRequest("Journey date must use YYYY-MM-DD format.");
-        if (!TimeOnly.TryParseExact(request.PlannedStartTime, "HH:mm", out var plannedStartTime))
-            return BadRequest("Departure time must use HH:mm format.");
+        if (!TimeOnly.TryParseExact(request.PlannedStartTime, ["HH:mm", "HH:mm:ss"], out var plannedStartTime))
+            return BadRequest("Departure time must use HH:mm or HH:mm:ss format.");
         TimeOnly? plannedEndTime = null;
         if (!string.IsNullOrWhiteSpace(request.PlannedEndTime))
         {
-            if (!TimeOnly.TryParseExact(request.PlannedEndTime, "HH:mm", out var parsedEndTime))
-                return BadRequest("Return time must use HH:mm format.");
+            if (!TimeOnly.TryParseExact(request.PlannedEndTime, ["HH:mm", "HH:mm:ss"], out var parsedEndTime))
+                return BadRequest("Return time must use HH:mm or HH:mm:ss format.");
             plannedEndTime = parsedEndTime;
         }
 
