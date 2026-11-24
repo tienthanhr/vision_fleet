@@ -303,6 +303,14 @@ footer > div { display: flex; flex-direction: column; gap: 5px; }footer strong {
 .saved-location-path { width:2px; height:42px; margin-left:9px; display:flex; flex-direction:column; justify-content:space-around; background:repeating-linear-gradient(to bottom,#078dbb 0 5px,transparent 5px 10px); }
 .status-select-label { display:grid; gap:7px; color:var(--portal-muted); font-size:12px; font-weight:600; }
 .status-select { width:100%; min-height:42px; padding:0 12px; border:1px solid var(--portal-line); border-radius:6px; color:var(--portal-navy); background:#fff; font-weight:600; }
+.status-select.status-select-pending { color:#946200; border-color:#e7b86a; background:#fff8e7; }
+.status-select.status-select-approved { color:#287352; border-color:#86c7a6; background:#edf8f2; }
+.status-select.status-select-declined { color:#9b3039; border-color:#df9da4; background:#fff1f2; }
+.status-update { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; margin-top:2px; padding:8px 10px 8px 12px; border:1px solid var(--portal-line); border-radius:7px; font-size:12px; }
+.status-update span { color:var(--portal-muted); }
+.status-update-pending { border-color:#e7b86a; background:#fff8e7; }
+.status-update-approved { border-color:#86c7a6; background:#edf8f2; }
+.status-update-declined { border-color:#df9da4; background:#fff1f2; }
 .admin-actions .primary-button,
 .admin-actions .danger-button { width:100%; min-width:0; }
 .passenger-summary { min-width:0; }
