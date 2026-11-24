@@ -356,7 +356,23 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load booking options."));
   }, []);
 
-  if (submitted) return <div className="success-state"><div className="success-icon"><Icon name="check" size={34} /></div><h1>Booking request submitted</h1><p>Your request {submittedId ? `(${submittedId}) ` : ""}has been sent to an administrator for review. We’ll notify you when its status changes.</p><Status>Pending</Status><button className="primary-button" onClick={onDone}>View my bookings</button></div>;
+  if (submitted) return (
+    <div className="booking-success-page">
+      <section className="success-state booking-success-card" aria-live="polite">
+        <div className="success-icon"><Icon name="check" size={34} /></div>
+        <span className="eyebrow">BOOKING CONFIRMATION</span>
+        <h1>Booking request submitted</h1>
+        <p className="booking-success-message">
+          Your request {submittedId && <strong>({submittedId})</strong>} has been sent to an administrator for review.
+          You will be notified when its status changes.
+        </p>
+        <div className="booking-success-status"><span>Status</span><Status>Pending</Status></div>
+        <button className="primary-button booking-success-button" onClick={onDone}>
+          View my bookings <Icon name="arrow" size={17} />
+        </button>
+      </section>
+    </div>
+  );
   if (!journeyType) return <>
     <PageTitle eyebrow="NEW REQUEST" title="What type of journey do you need?" subtitle="Choose a standard fleet booking or arrange home transport for one or more students." />
     <div className="journey-type-grid">
