@@ -376,9 +376,7 @@ function CreateBooking({ onDone, openRoute }: { onDone: () => void; openRoute: (
     <PageTitle eyebrow="NEW REQUEST" title="What type of journey do you need?" subtitle="Choose a standard fleet booking or arrange home transport for one or more students." />
     <div className="journey-type-grid">
       <button className="journey-type-card panel" onClick={() => setJourneyType("standard")}><span className="journey-type-icon"><Icon name="bus" size={28} /></span><Status>Standard Van Booking</Status><h2>Standard van booking</h2><p>Book an available van for one pickup, one destination and a passenger group.</p><ul><li>Choose an available van</li><li>Add journey details and passengers</li><li>Submit for administrator approval</li></ul><span className="type-action">Continue with standard booking <Icon name="arrow" /></span></button>
-      <button className="journey-type-card panel featured" onClick={() => setJourneyType("student")}><span className="journey-type-icon green"><Icon name="route" size={28} /></span><Status>Student Home Pickup</Status><h2>Student home pickup & drop-off</h2><p>Arrange a multi-stop journey using students’ confirmed saved home addresses.</p><ul><li>Select one or more students</li><li>Confirm private home addresses</li><li>Automatically generate a route</li></ul><span className="type-action">Plan student transport <Icon name="arrow" /></span></button>
     </div>
-    <div className="privacy-banner"><Icon name="shield" /><div><strong>Student home pickup is a future enhancement</strong><span>The standard van booking workflow is the implemented MVP. Home pickup shown here is mock-only and does not create a database booking or real route.</span></div></div>
   </>;
   if (journeyType === "student") return <StudentTransportForm back={() => setJourneyType(null)} openRoute={openRoute} />;
   return <>
