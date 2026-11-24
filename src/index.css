@@ -225,9 +225,10 @@ footer > div { display: flex; flex-direction: column; gap: 5px; }footer strong {
 /* Keep portal layout rules last so the legacy prototype rules cannot override them. */
 .app-shell { display:flex; width:100%; min-height:100vh; background:var(--portal-page); overflow-x:hidden; }
 .sidebar { position:fixed; inset:0 auto 0 0; width:260px; height:100vh; padding:18px 14px; display:block; overflow-y:auto; }
-.main-shell { width:calc(100% - 260px); max-width:calc(100% - 260px); min-width:0; margin-left:260px; overflow:hidden; }
+.main-shell { width:calc(100% - 260px); max-width:calc(100% - 260px); min-height:100vh; min-width:0; margin-left:260px; display:flex; flex-direction:column; overflow:hidden; }
 .sidebar-head { display:flex; }.sidebar-close { display:none; }
-.page-content { min-width:0; max-width:none; padding:34px 40px; }
+.page-content { flex:1 0 auto; min-height:0; min-width:0; max-width:none; padding:34px 40px; }
+.main-shell > footer { flex:0 0 auto; min-height:72px; margin-top:0; background:#f4f7f9; }
 .topbar { height:72px; padding:0 32px; }
 .menu-button,.mobile-logo { display:none; }
 .page-title { display:flex; }
