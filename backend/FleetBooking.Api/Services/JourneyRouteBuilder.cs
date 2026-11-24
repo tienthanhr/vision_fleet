@@ -33,13 +33,15 @@ public static class JourneyRouteBuilder
 
                     if (!stops.Any(stop => SameAddress(stop.Address, address)))
                     {
-                        stops.Add(new RouteStop
+                        var stop = new RouteStop
                         {
                             RouteId = route.Id,
                             StopOrder = stops.Count + 1,
                             Address = address,
                             PlannedArrival = stops.Count == 0 ? request.PlannedStartTime : null,
-                        });
+                        };
+                        stops.Add(stop);
+                        route.Stops.Add(stop);
                     }
                 }
             }
@@ -48,13 +50,15 @@ public static class JourneyRouteBuilder
                 if (string.IsNullOrWhiteSpace(request.StandardPickupLocation))
                     return "A pickup location is required before this journey can be assigned.";
 
-                stops.Add(new RouteStop
+                var pickupStop = new RouteStop
                 {
                     RouteId = route.Id,
                     StopOrder = 1,
                     Address = request.StandardPickupLocation.Trim(),
                     PlannedArrival = request.PlannedStartTime,
-                });
+                };
+                stops.Add(pickupStop);
+                route.Stops.Add(pickupStop);
             }
         }
 
@@ -69,6 +73,7 @@ public static class JourneyRouteBuilder
                 PlannedArrival = request.PlannedEndTime,
             };
             stops.Add(destinationStop);
+            route.Stops.Add(destinationStop);
         }
         else if (destinationStop.PlannedArrival is null)
         {
@@ -76,8 +81,11 @@ public static class JourneyRouteBuilder
         }
 
         for (var index = 0; index < stops.Count; index++)
-            stops[index].StopOrder = index + 1;
-        route.Stops = stops;
+        {
+            var expectedOrder = index + 1;
+            if (stops[index].StopOrder != expectedOrder)
+                stops[index].StopOrder = expectedOrder;
+        }
 
         var pickupStops = stops
             .Where(stop => !ReferenceEquals(stop, destinationStop))

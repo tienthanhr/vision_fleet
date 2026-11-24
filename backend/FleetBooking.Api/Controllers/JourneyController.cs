@@ -11,11 +11,16 @@ namespace FleetBooking.Api.Controllers;
 [ApiController]
 [Route("api/journeys")]
 [Authorize]
-public sealed class JourneyController(FleetDbContext database) : ControllerBase
+public sealed class JourneyController(FleetDbContext database, ILogger<JourneyController> logger) : ControllerBase
 {
     [HttpGet("assigned")]
     [Authorize(Roles = "driver")]
-    public async Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssigned(CancellationToken cancellationToken)
+    public Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssigned(CancellationToken cancellationToken) =>
+        GetAssignedAsync(cancellationToken, retryOnConcurrency: true);
+
+    private async Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssignedAsync(
+        CancellationToken cancellationToken,
+        bool retryOnConcurrency)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userId, out var parsedUserId)) return Unauthorized();
@@ -50,7 +55,21 @@ public sealed class JourneyController(FleetDbContext database) : ControllerBase
                 database, route, requestsById[route.RequestId], cancellationToken);
             if (setupError is not null) return Conflict(setupError);
         }
-        await database.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception) when (retryOnConcurrency)
+        {
+            logger.LogWarning(exception, "Retrying assigned journey backfill after a concurrent database update.");
+            database.ChangeTracker.Clear();
+            return await GetAssignedAsync(cancellationToken, retryOnConcurrency: false);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            logger.LogError(exception, "Assigned journey backfill failed after retrying a concurrent database update.");
+            return Conflict("Assigned journey data changed while it was loading. Refresh and try again.");
+        }
 
         var stopIds = routes.SelectMany(item => item.Stops.Select(stop => stop.Id)).ToArray();
         var passengers = await (
