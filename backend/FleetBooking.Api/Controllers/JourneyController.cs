@@ -72,7 +72,16 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
         {
             var request = requestsById[route.RequestId];
             var routeStopIds = route.Stops.Select(stop => stop.Id).ToHashSet();
-            string? setupWarning = null;
+            var isUnsupportedHomeJourney = request.JourneyType is JourneyType.StudentHomePickup or JourneyType.StudentHomeDropoff;
+            string? setupWarning = isUnsupportedHomeJourney
+                ? "This home-pickup/drop-off booking is no longer supported. Ask an administrator to replace it with a standard booking."
+                : null;
+            if (setupWarning is not null)
+            {
+                setupWarnings[route.Id] = setupWarning;
+                logger.LogWarning("Assigned journey {RouteId} needs administrator attention: {SetupWarning}", route.Id, setupWarning);
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(request.Destination))
                 setupWarning = "A destination is missing. Ask an administrator to review this booking.";
             else if (route.Stops.Count == 0)
@@ -99,6 +108,15 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
             {
                 var request = requestsById[route.RequestId];
                 var van = route.VanId is Guid vanId && vans.TryGetValue(vanId, out var assignedVan) ? assignedVan : null;
+                IEnumerable<DriverStopResponse> responseStops = request.JourneyType is JourneyType.StudentHomePickup or JourneyType.StudentHomeDropoff
+                    ? []
+                    : route.Stops.OrderBy(stop => stop.StopOrder).Select(stop => new DriverStopResponse(
+                        stop.Id,
+                        stop.StopOrder,
+                        stop.Address,
+                        stop.PlannedArrival,
+                        stop.ActualArrival,
+                        passengers.Where(passenger => passenger.RouteStopId == stop.Id)));
                 return new AssignedJourneyResponse(
                     route.Id,
                     request.Id,
@@ -112,13 +130,7 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
                     route.Status,
                     van?.RegistrationNumber,
                     van?.Name,
-                    route.Stops.OrderBy(stop => stop.StopOrder).Select(stop => new DriverStopResponse(
-                        stop.Id,
-                        stop.StopOrder,
-                        stop.Address,
-                        stop.PlannedArrival,
-                        stop.ActualArrival,
-                        passengers.Where(passenger => passenger.RouteStopId == stop.Id))),
+                    responseStops,
                     setupWarnings.GetValueOrDefault(route.Id));
             })
             .ToList();

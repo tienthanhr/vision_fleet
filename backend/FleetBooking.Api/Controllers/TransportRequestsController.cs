@@ -114,6 +114,10 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
         [FromBody] CreateTransportRequest request,
         CancellationToken cancellationToken)
     {
+        if (request.JourneyType is JourneyType.StudentHomePickup or JourneyType.StudentHomeDropoff)
+            return BadRequest("Home pickup and home drop-off are not supported. Use one pickup location and a destination.");
+        if (string.IsNullOrWhiteSpace(request.StandardPickupLocation))
+            return BadRequest("A single pickup location is required.");
         if (!DateOnly.TryParseExact(request.JourneyDate, "yyyy-MM-dd", out var journeyDate))
             return BadRequest("Journey date must use YYYY-MM-DD format.");
         if (!TimeOnly.TryParseExact(request.PlannedStartTime, ["HH:mm", "HH:mm:ss"], out var plannedStartTime))
@@ -206,7 +210,6 @@ public sealed class TransportRequestsController(FleetDbContext database) : Contr
     {
         var transportRequest = await database.TransportRequests
             .Include(item => item.Students).ThenInclude(item => item.Student).ThenInclude(item => item!.User)
-            .Include(item => item.Students).ThenInclude(item => item.Student).ThenInclude(item => item!.Addresses)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (transportRequest is null) return NotFound("The transport request was not found.");
         if (transportRequest.Status != RequestStatus.Approved) return BadRequest("Approve the booking before assigning a driver and van.");

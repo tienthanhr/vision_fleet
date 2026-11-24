@@ -1,5 +1,7 @@
 using FleetBooking.Api.Models;
 using FleetBooking.Api.Security;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using RouteEntity = FleetBooking.Api.Models.Route;
 
 namespace FleetBooking.Api.Data;
@@ -8,6 +10,8 @@ public static class DbSeeder
 {
     // Demo password for freshly seeded accounts; rotate via Manage Users.
     public const string DemoPassword = "Vision@2026";
+    private static readonly Guid SeededMorningRequestId = Guid.Parse("20000000-0000-0000-0000-000000003001");
+    private static readonly Guid SeededMorningRouteId = Guid.Parse("20000000-0000-0000-0000-000000004001");
 
     public static void Seed(FleetDbContext db)
     {
@@ -72,11 +76,11 @@ public static class DbSeeder
 
         var approved = new TransportRequest
         {
-            Id = Guid.Parse("20000000-0000-0000-0000-000000003001"),
+            Id = SeededMorningRequestId,
             CreatedById = staff.Id,
-            JourneyType = JourneyType.StudentHomePickup,
-            Title = "Morning pickup — Grafton loop",
-            Description = "Daily AM pickup for five students from the Grafton area.",
+            JourneyType = JourneyType.StandardVanBooking,
+            Title = "Morning shuttle — Grafton loop",
+            Description = "Group transport from Grafton Bridge to Vision College, Auckland City Campus.",
             JourneyDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
             PlannedStartTime = new TimeOnly(7, 30),
             PlannedEndTime = new TimeOnly(8, 30),
@@ -108,13 +112,120 @@ public static class DbSeeder
         pending.Students.Add(new RequestStudent { StudentId = students[3].Id, SpecialNotes = "Carries sports equipment." });
         db.TransportRequests.AddRange(approved, pending);
 
-        var route = new RouteEntity { Id = Guid.Parse("20000000-0000-0000-0000-000000004001"), RequestId = approved.Id, VanId = vans[0].Id, DriverId = driverProfile.Id, Status = "assigned" };
-        route.Stops.Add(new RouteStop { RouteId = route.Id, StopOrder = 1, Address = seed[0, 3], PlannedArrival = new TimeOnly(7, 30) });
-        route.Stops.Add(new RouteStop { RouteId = route.Id, StopOrder = 2, Address = seed[1, 3], PlannedArrival = new TimeOnly(7, 45) });
-        route.Stops.Add(new RouteStop { RouteId = route.Id, StopOrder = 3, Address = seed[2, 3], PlannedArrival = new TimeOnly(8, 0) });
+        var route = new RouteEntity { Id = SeededMorningRouteId, RequestId = approved.Id, VanId = vans[0].Id, DriverId = driverProfile.Id, Status = "assigned" };
+        var pickupStop = new RouteStop { RouteId = route.Id, StopOrder = 1, Address = approved.StandardPickupLocation, PlannedArrival = approved.PlannedStartTime };
+        route.Stops.Add(pickupStop);
+        route.Stops.Add(new RouteStop { RouteId = route.Id, StopOrder = 2, Address = approved.Destination, PlannedArrival = approved.PlannedEndTime });
+        foreach (var requestStudent in approved.Students)
+            db.PassengerAttendance.Add(new PassengerAttendance { RouteStopId = pickupStop.Id, StudentId = requestStudent.StudentId, Status = "pending" });
         db.Routes.Add(route);
         vans[0].Status = VanStatus.Assigned;
 
         db.SaveChanges();
     }
+
+    public static async Task<bool> NormalizeLegacySeedJourneyAsync(
+        FleetDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var request = await db.TransportRequests
+            .Include(item => item.Students)
+            .SingleOrDefaultAsync(item => item.Id == SeededMorningRequestId, cancellationToken);
+        if (request is null
+            || request.JourneyType != JourneyType.StudentHomePickup)
+            return false;
+        if (string.IsNullOrWhiteSpace(request.StandardPickupLocation)
+            || string.IsNullOrWhiteSpace(request.Destination))
+        {
+            logger.LogError("The legacy seeded morning journey {RequestId} cannot be normalized because its pickup or destination is missing.", request.Id);
+            return false;
+        }
+
+        var route = await db.Routes
+            .Include(item => item.Stops)
+            .SingleOrDefaultAsync(item => item.Id == SeededMorningRouteId && item.RequestId == request.Id, cancellationToken);
+        var attendance = new List<PassengerAttendance>();
+        var extraStops = new List<RouteStop>();
+        if (route is not null)
+        {
+            var stopIds = route.Stops.Select(item => item.Id).ToArray();
+            attendance = stopIds.Length == 0
+                ? []
+                : await db.PassengerAttendance
+                    .Where(item => stopIds.Contains(item.RouteStopId))
+                    .ToListAsync(cancellationToken);
+            if (!string.Equals(route.Status, "assigned", StringComparison.OrdinalIgnoreCase)
+                || route.Stops.Any(item => item.ActualArrival is not null)
+                || attendance.Any(item => !string.Equals(item.Status, "pending", StringComparison.OrdinalIgnoreCase) || item.RecordedAt is not null))
+            {
+                logger.LogWarning("The legacy seeded morning journey {RequestId} is already in progress and was not changed.", request.Id);
+                return false;
+            }
+
+            var existingStops = route.Stops.OrderBy(item => item.StopOrder).ToList();
+            var pickupStop = existingStops.FirstOrDefault(item => !SameAddress(item.Address, request.Destination))
+                ?? existingStops.FirstOrDefault();
+            if (pickupStop is null)
+            {
+                pickupStop = new RouteStop { RouteId = route.Id, Address = string.Empty };
+                route.Stops.Add(pickupStop);
+            }
+
+            var destinationStop = existingStops.FirstOrDefault(item =>
+                    item.Id != pickupStop.Id && SameAddress(item.Address, request.Destination))
+                ?? existingStops.FirstOrDefault(item => item.Id != pickupStop.Id);
+            if (destinationStop is null)
+            {
+                destinationStop = new RouteStop { RouteId = route.Id, Address = string.Empty };
+                route.Stops.Add(destinationStop);
+            }
+
+            pickupStop.StopOrder = 1;
+            pickupStop.Address = request.StandardPickupLocation.Trim();
+            pickupStop.PlannedArrival = request.PlannedStartTime;
+            destinationStop.StopOrder = 2;
+            destinationStop.Address = request.Destination.Trim();
+            destinationStop.PlannedArrival = request.PlannedEndTime;
+
+            foreach (var record in attendance)
+                record.RouteStopId = pickupStop.Id;
+            var passengerIds = attendance.Select(item => item.StudentId).ToHashSet();
+            foreach (var requestStudent in request.Students)
+            {
+                if (passengerIds.Add(requestStudent.StudentId))
+                {
+                    db.PassengerAttendance.Add(new PassengerAttendance
+                    {
+                        RouteStopId = pickupStop.Id,
+                        StudentId = requestStudent.StudentId,
+                        Status = "pending",
+                    });
+                }
+            }
+
+            extraStops = existingStops
+                .Where(item => item.Id != pickupStop.Id && item.Id != destinationStop.Id)
+                .ToList();
+        }
+
+        request.JourneyType = JourneyType.StandardVanBooking;
+        request.Title = "Morning shuttle — Grafton loop";
+        request.Description = "Group transport from Grafton Bridge to Vision College, Auckland City Campus.";
+        await db.SaveChangesAsync(cancellationToken);
+        if (route is not null && extraStops.Count > 0)
+        {
+            foreach (var stop in extraStops)
+                route.Stops.Remove(stop);
+            db.RouteStops.RemoveRange(extraStops);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        logger.LogInformation("Converted the legacy seeded home-pickup journey {RequestId} to a standard single-pickup route.", request.Id);
+        return true;
+    }
+
+    private static bool SameAddress(string left, string right) =>
+        string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
 }

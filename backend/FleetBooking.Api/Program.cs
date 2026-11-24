@@ -101,6 +101,16 @@ if (app.Configuration.GetValue<bool>("Database:AutoSeed"))
     DbSeeder.Seed(scope.ServiceProvider.GetRequiredService<FleetDbContext>());
 }
 
+if (app.Environment.IsProduction() || app.Configuration.GetValue<bool>("Database:AutoSeed"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<FleetDbContext>();
+    if (await db.Database.CanConnectAsync())
+        await DbSeeder.NormalizeLegacySeedJourneyAsync(db, app.Logger);
+    else
+        app.Logger.LogWarning("The database is unavailable; legacy demo journey normalization was skipped.");
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
