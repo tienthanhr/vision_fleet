@@ -1,0 +1,34 @@
+<mxfile host="app.diagrams.net" modified="2026-10-19T09:40:00.000Z" agent="Copilot" version="24.7.17">
+  <diagram id="architecture" name="System Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="users" value="System Users&#xa;&#xa;Administrator&#xa;Staff / Tutor&#xa;Parent / Guardian&#xa;Student&#xa;Driver" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F7FC;strokeColor=#0094C3;fontColor=#063B66;fontSize=16;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="350" width="190" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="frontend" value="Presentation Layer&#xa;&#xa;React 19 + TypeScript&#xa;Responsive Web Interface&#xa;Vision College UI Design&#xa;&#xa;Desktop / Tablet / Mobile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0094C3;fontColor=#063B66;fontSize=16;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="300" y="320" width="250" height="250" as="geometry"/>
+        </mxCell>
+        <mxCell id="backend" value="Application Layer&#xa;&#xa;ASP.NET Core 8 Web API&#xa;&#xa;Role-Based Access Control&#xa;Booking Service&#xa;Fleet &amp; Student Service&#xa;Route &amp; Attendance Service&#xa;Validation &amp; Error Handling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F6F8;strokeColor=#063B66;fontColor=#063B66;fontSize=16;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="650" y="285" width="300" height="320" as="geometry"/>
+        </mxCell>
+        <mxCell id="data" value="Data Layer&#xa;&#xa;Entity Framework Core&#xa;&#xa;PostgreSQL&#xa;fleet_booking database" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#E8F7FC;strokeColor=#0094C3;fontColor=#063B66;fontSize=16;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="350" width="230" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge1" value="Uses" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#063B66;endArrow=block;endFill=1;fontSize=13;" edge="1" parent="1" source="users" target="frontend">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge2" value="HTTPS / JSON API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#063B66;endArrow=block;endFill=1;fontSize=13;" edge="1" parent="1" source="frontend" target="backend">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge3" value="EF Core queries" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#063B66;endArrow=block;endFill=1;fontSize=13;" edge="1" parent="1" source="backend" target="data">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="note" value="Main data flow: User → React UI → ASP.NET Core API → Entity Framework Core → PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E5;strokeColor=#C98216;fontColor=#17233D;fontSize=15;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="320" y="700" width="760" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

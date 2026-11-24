@@ -1,0 +1,6 @@
+@FleetBooking.Api_HostAddress = http://localhost:5075
+
+GET {{FleetBooking.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,1 +1,7 @@
-{}
+{
+  "title": "Vision College Fleet Booking",
+  "description": "Vision College Fleet Booking and Transport Management",
+  "icons": {
+    "icon": "/favicon.svg"
+  }
+}

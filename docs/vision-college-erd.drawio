@@ -1,0 +1,61 @@
+<mxfile host="app.diagrams.net" modified="2026-10-19T09:40:00.000Z" agent="Copilot" version="24.7.17">
+  <diagram id="erd" name="Entity Relationship Diagram">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="users" value="USERS&#xa;────────────&#xa;PK id : UUID&#xa;full_name&#xa;email UNIQUE&#xa;role&#xa;status&#xa;phone&#xa;created_at" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F7FC;strokeColor=#0094C3;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="220" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="students" value="STUDENT_PROFILES&#xa;────────────&#xa;PK id : UUID&#xa;FK user_id UNIQUE&#xa;student_number UNIQUE&#xa;year_level&#xa;emergency_notes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0094C3;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="340" y="60" width="240" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="addresses" value="STUDENT_ADDRESSES&#xa;────────────&#xa;PK id : UUID&#xa;FK student_id&#xa;address_line&#xa;suburb / city&#xa;postcode&#xa;is_current&#xa;created_at" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0094C3;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="660" y="60" width="230" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="vans" value="VANS&#xa;────────────&#xa;PK id : UUID&#xa;registration_number UNIQUE&#xa;name&#xa;capacity&#xa;status&#xa;notes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F7FC;strokeColor=#0094C3;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="220" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="drivers" value="DRIVER_PROFILES&#xa;────────────&#xa;PK id : UUID&#xa;FK user_id UNIQUE&#xa;licence_number&#xa;licence_expiry&#xa;notes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0094C3;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="340" y="360" width="240" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="requests" value="TRANSPORT_REQUESTS&#xa;────────────&#xa;PK id : UUID&#xa;FK created_by_id&#xa;journey_type&#xa;title / description&#xa;journey_date / times&#xa;destination&#xa;status&#xa;FK reviewed_by_id" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF6E5;strokeColor=#C98216;fontColor=#17233D;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="660" y="340" width="270" height="230" as="geometry"/>
+        </mxCell>
+        <mxCell id="requestStudents" value="REQUEST_STUDENTS&#xa;────────────&#xa;PK id : UUID&#xa;FK request_id&#xa;FK student_id&#xa;special_notes&#xa;UNIQUE request + student" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C98216;fontColor=#17233D;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="350" width="250" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="changes" value="STUDENT_CHANGE_REQUESTS&#xa;────────────&#xa;PK id : UUID&#xa;FK student_id&#xa;FK requested_by_id&#xa;proposed address&#xa;status&#xa;FK reviewed_by_id&#xa;reviewed_at" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F4F6F8;strokeColor=#063B66;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="660" y="700" width="270" height="210" as="geometry"/>
+        </mxCell>
+        <mxCell id="routes" value="ROUTES&#xa;────────────&#xa;PK id : UUID&#xa;FK request_id UNIQUE&#xa;FK van_id&#xa;FK driver_id&#xa;planned times&#xa;status&#xa;created_at" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F7FC;strokeColor=#0094C3;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="650" width="250" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="stops" value="ROUTE_STOPS&#xa;────────────&#xa;PK id : UUID&#xa;FK route_id&#xa;stop_order&#xa;address&#xa;planned_arrival&#xa;actual_arrival&#xa;UNIQUE route + order" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0094C3;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="650" width="250" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="events" value="JOURNEY_EVENTS&#xa;────────────&#xa;PK id : UUID&#xa;FK route_id&#xa;event_type&#xa;event_time&#xa;notes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#063B66;fontColor=#063B66;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="930" width="250" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="attendance" value="PASSENGER_ATTENDANCE&#xa;────────────&#xa;PK id : UUID&#xa;FK route_stop_id&#xa;FK student_id&#xa;status&#xa;recorded_at&#xa;UNIQUE stop + student" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF6E5;strokeColor=#C98216;fontColor=#17233D;fontSize=14;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1690" y="650" width="260" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="1 : 0..1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERone;endFill=0;strokeColor=#063B66;" edge="1" parent="1" source="users" target="students"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#063B66;" edge="1" parent="1" source="students" target="addresses"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="1 : 0..1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERone;endFill=0;strokeColor=#063B66;" edge="1" parent="1" source="users" target="drivers"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#063B66;" edge="1" parent="1" source="users" target="requests"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" value="many : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#C98216;" edge="1" parent="1" source="requests" target="requestStudents"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" value="many : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#C98216;" edge="1" parent="1" source="students" target="requestStudents"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" value="1 : 0..1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERone;endFill=0;strokeColor=#063B66;" edge="1" parent="1" source="requests" target="routes"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#063B66;" edge="1" parent="1" source="routes" target="stops"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#063B66;" edge="1" parent="1" source="routes" target="events"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#C98216;" edge="1" parent="1" source="stops" target="attendance"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e11" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#C98216;" edge="1" parent="1" source="students" target="attendance"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e12" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmany;endFill=0;strokeColor=#063B66;" edge="1" parent="1" source="students" target="changes"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="note" value="Open these files in diagrams.net: File → Open From → Device" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F7FC;strokeColor=#0094C3;fontColor=#063B66;fontSize=15;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1080" width="520" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
