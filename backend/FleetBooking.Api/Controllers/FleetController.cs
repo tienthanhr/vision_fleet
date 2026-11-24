@@ -17,7 +17,7 @@ public sealed class FleetController(FleetDbContext database) : ControllerBase
     public async Task<ActionResult<IEnumerable<UserResponse>>> GetUsers(CancellationToken cancellationToken)
     {
         var users = await database.Users.AsNoTracking().OrderBy(user => user.FullName)
-            .Select(user => new UserResponse(user.Id, user.FullName, user.Email, user.Role, user.Status))
+            .Select(user => new UserResponse(user.Id, user.FullName, user.Email, user.Role, user.Status, user.Phone))
             .ToListAsync(cancellationToken);
         return Ok(users);
     }
@@ -113,7 +113,7 @@ public sealed class FleetController(FleetDbContext database) : ControllerBase
         var user = new User { FullName = input.FullName.Trim(), Email = email, PasswordHash = PasswordService.Hash(input.Password), Role = role, Status = string.IsNullOrWhiteSpace(input.Status) ? "active" : input.Status.Trim().ToLowerInvariant(), Phone = input.Phone?.Trim() };
         database.Users.Add(user);
         await database.SaveChangesAsync(cancellationToken);
-        return CreatedAtAction(nameof(GetUsers), new { id = user.Id }, new UserResponse(user.Id, user.FullName, user.Email, user.Role, user.Status));
+        return CreatedAtAction(nameof(GetUsers), new { id = user.Id }, new UserResponse(user.Id, user.FullName, user.Email, user.Role, user.Status, user.Phone));
     }
 
     [HttpPut("users/{id:guid}")]
@@ -174,7 +174,7 @@ public sealed class FleetController(FleetDbContext database) : ControllerBase
     {
         var students = await database.StudentProfiles.AsNoTracking().Include(student => student.User)
             .OrderBy(student => student.StudentNumber)
-            .Select(student => new StudentResponse(student.Id, student.User == null ? "Unnamed student" : student.User.FullName, student.StudentNumber, student.YearLevel, student.Addresses.Where(address => address.IsCurrent).Select(address => new AddressResponse(address.AddressLine, address.Suburb, address.City, address.Postcode)).FirstOrDefault()))
+            .Select(student => new StudentResponse(student.Id, student.User == null ? "Unnamed student" : student.User.FullName, student.User == null ? null : student.User.Email, student.StudentNumber, student.YearLevel, student.EmergencyNotes, student.Addresses.Where(address => address.IsCurrent).Select(address => new AddressResponse(address.AddressLine, address.Suburb, address.City, address.Postcode)).FirstOrDefault()))
             .ToListAsync(cancellationToken);
         return Ok(students);
     }
@@ -186,12 +186,12 @@ public sealed class FleetController(FleetDbContext database) : ControllerBase
         if (!CanManageStudents(Request)) return Forbid();
         if (string.IsNullOrWhiteSpace(input.Name) || string.IsNullOrWhiteSpace(input.StudentNumber) || string.IsNullOrWhiteSpace(input.AddressLine))
             return BadRequest("Name, student number and address are required.");
-        var user = new User { FullName = input.Name.Trim(), Email = input.Email.Trim(), PasswordHash = "managed-by-portal", Role = UserRole.Student };
-        var student = new StudentProfile { User = user, StudentNumber = input.StudentNumber.Trim(), YearLevel = input.YearLevel };
+        var user = new User { FullName = input.Name.Trim(), Email = string.IsNullOrWhiteSpace(input.Email) ? $"{input.StudentNumber.Trim().ToLowerInvariant()}@student.visioncollege.ac.nz" : input.Email.Trim(), PasswordHash = "managed-by-portal", Role = UserRole.Student };
+        var student = new StudentProfile { User = user, StudentNumber = input.StudentNumber.Trim(), YearLevel = input.YearLevel, EmergencyNotes = BuildGuardianNotes(input.GuardianName, input.GuardianPhone) };
         student.Addresses.Add(ToAddress(input));
         database.StudentProfiles.Add(student);
         await database.SaveChangesAsync(cancellationToken);
-        return CreatedAtAction(nameof(GetStudents), new { id = student.Id }, new StudentResponse(student.Id, user.FullName, student.StudentNumber, student.YearLevel, new AddressResponse(input.AddressLine, input.Suburb, input.City, input.Postcode)));
+        return CreatedAtAction(nameof(GetStudents), new { id = student.Id }, new StudentResponse(student.Id, user.FullName, user.Email, student.StudentNumber, student.YearLevel, student.EmergencyNotes, new AddressResponse(input.AddressLine, input.Suburb, input.City, input.Postcode)));
     }
 
     [HttpPut("students/{id:guid}")]
@@ -206,7 +206,9 @@ public sealed class FleetController(FleetDbContext database) : ControllerBase
             student.User = new User
             {
                 FullName = input.Name.Trim(),
-                Email = input.Email.Trim(),
+                Email = string.IsNullOrWhiteSpace(input.Email)
+                    ? $"{input.StudentNumber.Trim().ToLowerInvariant()}@student.visioncollege.ac.nz"
+                    : input.Email.Trim(),
                 Role = UserRole.Student,
                 PasswordHash = "managed-by-portal",
             };
@@ -216,10 +218,12 @@ public sealed class FleetController(FleetDbContext database) : ControllerBase
         else
         {
             student.User.FullName = input.Name.Trim();
-            student.User.Email = input.Email.Trim();
+            if (!string.IsNullOrWhiteSpace(input.Email))
+                student.User.Email = input.Email.Trim();
         }
         student.StudentNumber = input.StudentNumber.Trim();
         student.YearLevel = input.YearLevel;
+        student.EmergencyNotes = BuildGuardianNotes(input.GuardianName, input.GuardianPhone);
         if (!string.IsNullOrWhiteSpace(input.AddressLine))
         {
             var current = student.Addresses.FirstOrDefault(address => address.IsCurrent);
@@ -290,17 +294,26 @@ public sealed class FleetController(FleetDbContext database) : ControllerBase
     }
 
     private static bool CanManageStudents(HttpRequest request) => request.Headers["X-Portal-Role"].Any(value => string.Equals(value, "admin", StringComparison.OrdinalIgnoreCase) || string.Equals(value, "staff", StringComparison.OrdinalIgnoreCase));
+    private static string? BuildGuardianNotes(string? guardianName, string? guardianPhone)
+    {
+        var name = guardianName?.Trim();
+        var phone = guardianPhone?.Trim();
+        if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(phone)) return null;
+        if (string.IsNullOrWhiteSpace(phone)) return $"Guardian: {name}";
+        if (string.IsNullOrWhiteSpace(name)) return $"Guardian phone: {phone}";
+        return $"Guardian: {name} · {phone}";
+    }
     private static StudentAddress ToAddress(StudentChangeInput input) => new() { AddressLine = input.AddressLine.Trim(), Suburb = input.Suburb, City = input.City, Postcode = input.Postcode };
 }
 
 public sealed record VanResponse(Guid Id, string RegistrationNumber, string? Name, int Capacity, VanStatus Status);
 public sealed record AddressResponse(string AddressLine, string? Suburb, string? City, string? Postcode);
-public sealed record StudentResponse(Guid Id, string Name, string StudentNumber, string? YearLevel, AddressResponse? Address);
-public sealed record UserResponse(Guid Id, string FullName, string Email, UserRole Role, string Status);
+public sealed record StudentResponse(Guid Id, string Name, string? Email, string StudentNumber, string? YearLevel, string? EmergencyNotes, AddressResponse? Address);
+public sealed record UserResponse(Guid Id, string FullName, string Email, UserRole Role, string Status, string? Phone);
 public sealed record FleetSummaryResponse(int TotalBookings, int PendingBookings, int AvailableVans, int OnJourneyVans, int MaintenanceVans, int TotalVans, int UpcomingJourneys);
 public sealed record VanInput(string RegistrationNumber, string? Name, int Capacity, string Status, string? Notes);
 public sealed record UserInput(string FullName, string Email, string? Password, string Role, string? Status, string? Phone);
-public sealed record StudentChangeInput(string Name, string Email, string StudentNumber, string? YearLevel, string AddressLine, string? Suburb, string? City, string? Postcode);
+public sealed record StudentChangeInput(string Name, string? Email, string StudentNumber, string? YearLevel, string AddressLine, string? Suburb, string? City, string? Postcode, string? GuardianName, string? GuardianPhone);
 public sealed record StudentChangeRequestInput(Guid StudentId, string AddressLine, string? Suburb, string? City, string? Postcode);
 public sealed record ReviewChangeRequestInput(string Status);
 public sealed record ChangeRequestResponse(Guid Id, Guid StudentId, string StudentName, string AddressLine, string? Suburb, string? City, string? Postcode, string Status, DateTimeOffset CreatedAt);

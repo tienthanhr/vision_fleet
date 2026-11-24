@@ -75,7 +75,6 @@ const portalNav: Record<Role, NavItem[]> = {
     { label: "Manage Vans", icon: "bus" },
     { label: "Manage Drivers", icon: "user" },
     { label: "Manage Students", icon: "users" },
-    { label: "Manage Guardians", icon: "shield" },
     { label: "Manage Users", icon: "users" },
   ],
   staff: [
@@ -84,7 +83,6 @@ const portalNav: Record<Role, NavItem[]> = {
     { label: "Available Vans", icon: "bus" },
     { label: "My Bookings", icon: "book" },
     { label: "Manage Students", icon: "users" },
-    { label: "Manage Guardians", icon: "shield" },
   ],
   driver: [
     { label: "Dashboard", icon: "grid" },
@@ -160,8 +158,8 @@ type ApiBooking = {
   createdAt?: string;
 };
 type ApiVan = { id: string; registrationNumber: string; name?: string; capacity: number; status: string };
-type ApiStudent = { id: string; name: string; email?: string; studentNumber: string; yearLevel?: string; address?: { addressLine: string; suburb?: string; city?: string; postcode?: string } };
-type ApiUser = { id: string; fullName: string; email: string; role: string; status: string };
+type ApiStudent = { id: string; name: string; email?: string; studentNumber: string; yearLevel?: string; emergencyNotes?: string; address?: { addressLine: string; suburb?: string; city?: string; postcode?: string } };
+type ApiUser = { id: string; fullName: string; email: string; role: string; status: string; phone?: string };
 
 function formatApiDate(date: string | null | undefined) {
   if (!date) return "Date not specified";
@@ -658,7 +656,7 @@ function FleetPage({ users = false, readOnly = false }: { users?: boolean; readO
   return <><PageTitle eyebrow={users ? "ACCESS CONTROL" : readOnly ? "FLEET AVAILABILITY" : "FLEET MANAGEMENT"} title={users ? "Manage users and roles" : readOnly ? "Available fleet" : "Vans and availability"} subtitle={users ? "Control accounts, portal access and role-based permissions." : readOnly ? "View current fleet status. Vehicle changes are restricted to Administrators." : "Manage registration, capacity and maintenance across the fleet."} action={!readOnly && !users ? <button className="primary-button" onClick={() => setShowForm(true)}><Icon name="plus" size={18} /> Add van</button> : !readOnly && users ? <button className="primary-button" onClick={() => setShowForm(true)}><Icon name="plus" size={18} /> Add user</button> : undefined} />{showForm && !readOnly && <form className="panel management-form" onSubmit={save}><div className="form-grid">{users ? <><label>Full name<input required value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} /></label><label>Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label>Password<input required type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label><label>Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}><option value="staff">Staff / Tutor</option><option value="driver">Driver</option><option value="admin">Administrator</option></select></label></> : <><label>Registration number<input required value={form.registrationNumber} onChange={(event) => setForm({ ...form, registrationNumber: event.target.value })} /></label><label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Capacity<input required type="number" min="1" value={form.capacity} onChange={(event) => setForm({ ...form, capacity: event.target.value })} /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option>Available</option><option>Maintenance</option><option>Inactive</option></select></label></>}</div><div className="form-actions"><button type="button" className="secondary-button" onClick={() => setShowForm(false)}>Cancel</button><button className="primary-button" disabled={saving}>{saving ? "Saving..." : "Save"}</button></div></form>}{error ? <section className="panel empty-state"><h2>Could not load database data</h2><p>{error}</p></section> : users ? <section className="panel"><div className="user-list">{apiUsers.map((user) => <div className="user-row" key={user.id}><div className="avatar">{user.fullName.split(" ").map((word) => word[0]).join("")}</div><div><strong>{user.fullName}</strong><span>{user.email}</span></div><Status>{user.status === "active" ? "Approved" : "Declined"}</Status><span className="user-role">{user.role}</span>{!readOnly && <button className="danger-button" onClick={() => remove("users", user.id)}>Delete</button>}</div>)}</div></section> : <div className="fleet-grid">{vans.map((van) => <article className="panel van-card" key={van.id}><div className="van-visual"><Icon name="bus" size={52} /><Status>{van.status}</Status></div><h2>{van.registrationNumber}</h2><p>{van.name} · {van.capacity} seats</p><div className="van-stats"><span><small>STATUS</small><strong>{van.status}</strong></span><span><small>CAPACITY</small><strong>{van.capacity} seats</strong></span></div>{!readOnly && <button className={`${van.status.toLowerCase() === "assigned" ? "assigned-button" : "danger-button"} full-button`} disabled={van.status.toLowerCase() === "assigned"} title={van.status.toLowerCase() === "assigned" ? "Unassign this van before deleting it" : "Delete vehicle"} onClick={() => remove("vans", van.id)}>{van.status.toLowerCase() === "assigned" ? "Assigned to route" : "Delete vehicle"}</button>}</article>)}</div>}</>;
 }
 
-type ManagementSection = "drivers" | "students" | "guardians";
+type ManagementSection = "drivers" | "students";
 
 function ManagementPage({ section, role }: { section: ManagementSection; role: Role }) {
   const [users, setUsers] = useState<ApiUser[]>([]);
@@ -667,11 +665,12 @@ function ManagementPage({ section, role }: { section: ManagementSection; role: R
   const [changeRequests, setChangeRequests] = useState<Array<{ id: string; studentName: string; addressLine: string; suburb?: string; city?: string; postcode?: string; status: string }>>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", studentNumber: "", yearLevel: "", addressLine: "", suburb: "", city: "", postcode: "" });
+  const [form, setForm] = useState({ name: "", email: "", studentNumber: "", yearLevel: "", addressLine: "", suburb: "", city: "", postcode: "", guardianName: "", guardianPhone: "" });
+  const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
+  const [driverForm, setDriverForm] = useState({ fullName: "", email: "", phone: "", status: "active" });
   const content = {
     drivers: { eyebrow: "DRIVER MANAGEMENT", title: "Manage drivers", subtitle: "Review approved drivers, availability and assigned journeys.", action: "Add driver" },
     students: { eyebrow: "STUDENT MANAGEMENT", title: "Manage students", subtitle: "Maintain student records and transport eligibility.", action: "Add student" },
-    guardians: { eyebrow: "GUARDIAN MANAGEMENT", title: "Manage guardians", subtitle: "Manage family accounts and linked student access.", action: "Add guardian" },
   }[section];
 
   useEffect(() => {
@@ -692,17 +691,39 @@ function ManagementPage({ section, role }: { section: ManagementSection; role: R
 
   const listedUsers = section === "drivers"
     ? users.filter((user) => user.role.toLowerCase().includes("driver"))
-    : section === "guardians"
-      ? users.filter((user) => user.role.toLowerCase().includes("parent") || user.role.toLowerCase().includes("guardian"))
-      : [];
+    : [];
 
+  const saveDriver = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingDriverId) return;
+    const response = await apiFetch(`${API_BASE_URL}/fleet/users/${editingDriverId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: driverForm.fullName,
+        email: driverForm.email,
+        password: null,
+        role: "driver",
+        status: driverForm.status,
+        phone: driverForm.phone,
+      }),
+    });
+    if (!response.ok) {
+      setError(await response.text() || "Could not update driver.");
+      return;
+    }
+    setEditingDriverId(null);
+    setError("");
+    const refreshed = await apiFetch(`${API_BASE_URL}/fleet/users`);
+    if (refreshed.ok) setUsers(await refreshed.json());
+  };
   const saveStudent = async (event: FormEvent) => {
     event.preventDefault();
     const response = await apiFetch(`${API_BASE_URL}/fleet/students${editingId ? `/${editingId}` : ""}`, { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json", "X-Portal-Role": role }, body: JSON.stringify(form) });
     if (!response.ok) { setError(await response.text() || "Could not create student."); return; }
     setShowForm(false);
     setEditingId(null);
-    setForm({ name: "", email: "", studentNumber: "", yearLevel: "", addressLine: "", suburb: "", city: "", postcode: "" });
+    setForm({ name: "", email: "", studentNumber: "", yearLevel: "", addressLine: "", suburb: "", city: "", postcode: "", guardianName: "", guardianPhone: "" });
     const refreshed = await apiFetch(`${API_BASE_URL}/fleet/students`);
     if (refreshed.ok) setStudents(await refreshed.json());
   };
@@ -710,9 +731,9 @@ function ManagementPage({ section, role }: { section: ManagementSection; role: R
     const response = await apiFetch(`${API_BASE_URL}/fleet/student-change-requests/${id}`, { method: "PUT", headers: { "Content-Type": "application/json", "X-Portal-Role": role }, body: JSON.stringify({ status }) });
     if (response.ok) setChangeRequests((items) => items.map((item) => item.id === id ? { ...item, status } : item));
   };
-  return <><PageTitle eyebrow={content.eyebrow} title={content.title} subtitle={content.subtitle} action={<button className="primary-button" onClick={() => { setEditingId(null); setForm({ name: "", email: "", studentNumber: "", yearLevel: "", addressLine: "", suburb: "", city: "", postcode: "" }); setShowForm(true); }}><Icon name="plus" size={18} /> {content.action}</button>} />
-    {section === "students" && showForm && <form className="panel booking-form management-form" onSubmit={saveStudent}><div className="panel-head"><div><h2>{editingId ? "Edit student and pickup address" : "Add student and pickup address"}</h2><p>Only staff and administrators can create or directly update student records.</p></div></div><div className="form-grid"><label>Full name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label>Student number<input required value={form.studentNumber} onChange={(event) => setForm({ ...form, studentNumber: event.target.value })} /></label><label>Year level<input value={form.yearLevel} onChange={(event) => setForm({ ...form, yearLevel: event.target.value })} /></label><label className="full">Address line<input required value={form.addressLine} onChange={(event) => setForm({ ...form, addressLine: event.target.value })} /></label><label>Suburb<input value={form.suburb} onChange={(event) => setForm({ ...form, suburb: event.target.value })} /></label><label>City<input value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} /></label><label>Postcode<input value={form.postcode} onChange={(event) => setForm({ ...form, postcode: event.target.value })} /></label></div><div className="form-actions"><button type="button" className="secondary-button" onClick={() => setShowForm(false)}>Cancel</button><button className="primary-button" type="submit">Save student</button></div></form>}
-    {error ? <section className="panel empty-state"><h2>Could not load database data</h2><p>{error}</p></section> : section === "students" ? <><section className="panel"><div className="filter-bar"><div className="search-field"><Icon name="search" /><input placeholder="Search students..." /></div><select><option>All programmes</option><option>Information Technology</option><option>Cyber Security</option></select></div><div className="user-list">{students.map((student) => <div className="user-row" key={student.id}><div className="avatar">{student.name.split(" ").map((word) => word[0]).join("")}</div><div><strong>{student.name}</strong><span>{student.studentNumber} · {student.yearLevel ?? "Student"} · {student.address?.addressLine ?? "No address recorded"}</span></div><Status>Approved</Status><span className="user-role">Staff/admin editable</span><button className="row-action" onClick={() => { setEditingId(student.id); setForm({ name: student.name, email: student.email ?? "", studentNumber: student.studentNumber, yearLevel: student.yearLevel ?? "", addressLine: student.address?.addressLine ?? "", suburb: student.address?.suburb ?? "", city: student.address?.city ?? "", postcode: student.address?.postcode ?? "" }); setShowForm(true); }}>Edit record <Icon name="arrow" size={15} /></button></div>)}</div></section><section className="panel change-request-panel"><div className="panel-head"><div><h2>Parent change requests</h2><p>Review address updates before they become the current student address.</p></div></div>{changeRequests.length ? changeRequests.map((request) => <div className="user-row" key={request.id}><div className="avatar"><Icon name="shield" size={17} /></div><div><strong>{request.studentName}</strong><span>{request.addressLine}, {request.suburb ?? ""} {request.city ?? ""}</span></div><Status>{request.status === "pending" ? "Pending" : request.status}</Status>{request.status === "pending" && <div className="form-actions"><button className="secondary-button" onClick={() => reviewRequest(request.id, "declined")}>Decline</button><button className="primary-button" onClick={() => reviewRequest(request.id, "approved")}>Approve</button></div>}</div>) : <div className="empty-state"><h2>No pending requests</h2><p>Parent-submitted address changes will appear here for approval.</p></div>}</section></> : <section className="panel"><div className="filter-bar"><div className="search-field"><Icon name="search" /><input placeholder={`Search ${section}...`} /></div><select><option>All statuses</option><option>Active</option><option>Inactive</option></select></div><div className="user-list">{listedUsers.length ? listedUsers.map((user) => <div className="user-row" key={user.id}><div className="avatar">{user.fullName.split(" ").map((word) => word[0]).join("")}</div><div><strong>{user.fullName}</strong><span>{user.email}</span></div><Status>{user.status === "active" ? "Approved" : "Declined"}</Status><span className="user-role">{section === "drivers" ? "Driver account" : "Guardian account"}</span><button className="row-action">Manage <Icon name="arrow" size={15} /></button></div>) : <div className="empty-state"><div className="success-icon"><Icon name={section === "drivers" ? "bus" : "shield"} /></div><h2>No {section} records yet</h2><p>Use “{content.action}” to create the first record.</p></div>}</div></section>}</>;
+  return <><PageTitle eyebrow={content.eyebrow} title={content.title} subtitle={content.subtitle} action={<button className="primary-button" onClick={() => { setEditingId(null); setForm({ name: "", email: "", studentNumber: "", yearLevel: "", addressLine: "", suburb: "", city: "", postcode: "", guardianName: "", guardianPhone: "" }); setShowForm(true); }}><Icon name="plus" size={18} /> {content.action}</button>} />
+    {section === "students" && showForm && <form className="panel booking-form management-form" onSubmit={saveStudent}><div className="panel-head"><div><h2>{editingId ? "Edit student and pickup address" : "Add student and pickup address"}</h2><p>Only staff and administrators can create or directly update student records.</p></div></div><div className="form-grid"><label>Full name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Email (optional)<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label>Student number<input required value={form.studentNumber} onChange={(event) => setForm({ ...form, studentNumber: event.target.value })} /></label><label>Year level<input value={form.yearLevel} onChange={(event) => setForm({ ...form, yearLevel: event.target.value })} /></label><label className="full">Address line<input required value={form.addressLine} onChange={(event) => setForm({ ...form, addressLine: event.target.value })} /></label><label>Suburb<input value={form.suburb} onChange={(event) => setForm({ ...form, suburb: event.target.value })} /></label><label>City<input value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} /></label><label>Postcode<input value={form.postcode} onChange={(event) => setForm({ ...form, postcode: event.target.value })} /></label><label>Guardian name<input value={form.guardianName} onChange={(event) => setForm({ ...form, guardianName: event.target.value })} /></label><label>Guardian phone<input value={form.guardianPhone} onChange={(event) => setForm({ ...form, guardianPhone: event.target.value })} /></label></div><div className="form-actions"><button type="button" className="secondary-button" onClick={() => setShowForm(false)}>Cancel</button><button className="primary-button" type="submit">Save student</button></div></form>}
+    {error ? <section className="panel empty-state"><h2>Could not load database data</h2><p>{error}</p></section> : section === "students" ? <><section className="panel"><div className="filter-bar"><div className="search-field"><Icon name="search" /><input placeholder="Search students..." /></div><select><option>All programmes</option><option>Information Technology</option><option>Cyber Security</option></select></div><div className="user-list">{students.map((student) => <div className="user-row" key={student.id}><div className="avatar">{student.name.split(" ").map((word) => word[0]).join("")}</div><div><strong>{student.name}</strong><span>{student.studentNumber} · {student.yearLevel ?? "Student"} · {student.address?.addressLine ?? "No address recorded"}</span></div><Status>Approved</Status><span className="user-role">Staff/admin editable</span><button className="row-action" onClick={() => {     setEditingId(student.id); setForm({ name: student.name, email: student.email ?? "", studentNumber: student.studentNumber, yearLevel: student.yearLevel ?? "", addressLine: student.address?.addressLine ?? "", suburb: student.address?.suburb ?? "", city: student.address?.city ?? "", postcode: student.address?.postcode ?? "", guardianName: "", guardianPhone: "" }); setShowForm(true); }}>Edit record <Icon name="arrow" size={15} /></button></div>)}</div></section><section className="panel change-request-panel"><div className="panel-head"><div><h2>Parent change requests</h2><p>Review address updates before they become the current student address.</p></div></div>{changeRequests.length ? changeRequests.map((request) => <div className="user-row" key={request.id}><div className="avatar"><Icon name="shield" size={17} /></div><div><strong>{request.studentName}</strong><span>{request.addressLine}, {request.suburb ?? ""} {request.city ?? ""}</span></div><Status>{request.status === "pending" ? "Pending" : request.status}</Status>{request.status === "pending" && <div className="form-actions"><button className="secondary-button" onClick={() => reviewRequest(request.id, "declined")}>Decline</button><button className="primary-button" onClick={() => reviewRequest(request.id, "approved")}>Approve</button></div>}</div>) : <div className="empty-state"><h2>No pending requests</h2><p>Parent-submitted address changes will appear here for approval.</p></div>}</section></> : <section className="panel"><div className="filter-bar"><div className="search-field"><Icon name="search" /><input placeholder={`Search ${section}...`} /></div><select><option>All statuses</option><option>Active</option><option>Inactive</option></select></div>{editingDriverId && <form className="panel management-form" onSubmit={saveDriver}><div className="form-grid"><label>Full name<input required value={driverForm.fullName} onChange={(event) => setDriverForm({ ...driverForm, fullName: event.target.value })} /></label><label>Email<input type="email" value={driverForm.email} onChange={(event) => setDriverForm({ ...driverForm, email: event.target.value })} /></label><label>Phone<input value={driverForm.phone} onChange={(event) => setDriverForm({ ...driverForm, phone: event.target.value })} /></label><label>Status<select value={driverForm.status} onChange={(event) => setDriverForm({ ...driverForm, status: event.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div><div className="form-actions"><button type="button" className="secondary-button" onClick={() => setEditingDriverId(null)}>Cancel</button><button className="primary-button" type="submit">Save driver</button></div></form>}<div className="user-list">{listedUsers.length ? listedUsers.map((user) => <div className="user-row" key={user.id}><div className="avatar">{user.fullName.split(" ").map((word) => word[0]).join("")}</div><div><strong>{user.fullName}</strong><span>{user.email}{user.status === "active" ? "" : " · Inactive"}</span></div><Status>{user.status === "active" ? "Approved" : "Declined"}</Status><span className="user-role">Driver account</span><button className="row-action" onClick={() => {     setEditingDriverId(user.id); setDriverForm({ fullName: user.fullName, email: user.email, phone: user.phone ?? "", status: user.status }); }}>Edit driver <Icon name="arrow" size={15} /></button></div>) : <div className="empty-state"><div className="success-icon"><Icon name="bus" /></div><h2>No drivers records yet</h2><p>Use “{content.action}” to create the first record.</p></div>}</div></section>}</>;
 }
 
 function FamilyDashboard({ role, selectedStudent, setActive }: { role: Role; selectedStudent: number; setActive: (value: string) => void }) {
@@ -934,7 +955,6 @@ export default function App() {
       "manage-vans": "Manage Vans",
       "manage-drivers": "Manage Drivers",
       "manage-students": "Manage Students",
-      "manage-guardians": "Manage Guardians",
       "manage-users": "Manage Users",
       profile: "Profile",
     };
@@ -1013,7 +1033,6 @@ export default function App() {
       if (active === "Manage Users") return <FleetPage users />;
       if (active === "Manage Drivers") return <ManagementPage section="drivers" role={role} />;
       if (active === "Manage Students") return <ManagementPage section="students" role={role} />;
-      if (active === "Manage Guardians") return <ManagementPage section="guardians" role={role} />;
     }
     if (role === "staff") {
       if (active === "Dashboard") return <StaffDashboard role={role} fullName={fullName} setActive={setActive} onDetails={openBookingDetails} />;
@@ -1022,7 +1041,6 @@ export default function App() {
       if (active === "My Bookings") return <BookingsPage mine={true} onDetails={openBookingDetails} />;
       if (active === "Booking Details") return <BookingDetails role={role} bookingId={selectedBookingId} back={() => setActive("My Bookings")} onUpdateBooking={() => setActive("Create Booking")} />;
       if (active === "Manage Students") return <ManagementPage section="students" role={role} />;
-      if (active === "Manage Guardians") return <ManagementPage section="guardians" role={role} />;
     }
     if (role === "driver") {
       if (active === "Dashboard" || active === "Assigned Journeys") return <DriverDashboard setActive={setActive} />;
