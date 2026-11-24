@@ -68,23 +68,12 @@ public static class JourneyRouteBuilder
             destinationStop = new RouteStop
             {
                 RouteId = route.Id,
-                StopOrder = stops.Count + 1,
+                StopOrder = stops.Count == 0 ? 1 : stops.Max(stop => stop.StopOrder) + 1,
                 Address = request.Destination.Trim(),
                 PlannedArrival = request.PlannedEndTime,
             };
             stops.Add(destinationStop);
             route.Stops.Add(destinationStop);
-        }
-        else if (destinationStop.PlannedArrival is null)
-        {
-            destinationStop.PlannedArrival = request.PlannedEndTime;
-        }
-
-        for (var index = 0; index < stops.Count; index++)
-        {
-            var expectedOrder = index + 1;
-            if (stops[index].StopOrder != expectedOrder)
-                stops[index].StopOrder = expectedOrder;
         }
 
         var pickupStops = stops

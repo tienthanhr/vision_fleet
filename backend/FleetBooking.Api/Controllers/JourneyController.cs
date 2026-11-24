@@ -30,6 +30,46 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
             .SingleOrDefaultAsync(cancellationToken);
         if (driverProfileId is null) return Ok(Array.Empty<AssignedJourneyResponse>());
 
+        var lockName = $"fleet-journey-backfill-{driverProfileId.Value:N}";
+        await database.Database.OpenConnectionAsync(cancellationToken);
+        var lockAcquired = false;
+        try
+        {
+            var lockResult = await database.Database
+                .SqlQueryRaw<int>("SELECT COALESCE(GET_LOCK({0}, 15), 0) AS Value", lockName)
+                .SingleAsync(cancellationToken);
+            if (lockResult != 1)
+            {
+                logger.LogWarning("Timed out waiting to backfill assigned journeys for driver {DriverProfileId}.", driverProfileId);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, "Journey data is being prepared. Retry shortly.");
+            }
+
+            lockAcquired = true;
+            return await GetAssignedUnderLockAsync(driverProfileId.Value, cancellationToken, retryOnConcurrency);
+        }
+        finally
+        {
+            try
+            {
+                if (lockAcquired)
+                {
+                    await database.Database
+                        .SqlQueryRaw<int>("SELECT COALESCE(RELEASE_LOCK({0}), 0) AS Value", lockName)
+                        .SingleAsync(cancellationToken);
+                }
+            }
+            finally
+            {
+                await database.Database.CloseConnectionAsync();
+            }
+        }
+    }
+
+    private async Task<ActionResult<IEnumerable<AssignedJourneyResponse>>> GetAssignedUnderLockAsync(
+        Guid driverProfileId,
+        CancellationToken cancellationToken,
+        bool retryOnConcurrency)
+    {
         var routes = await database.Routes
             .Include(item => item.Stops)
             .Where(item => item.DriverId == driverProfileId)
@@ -63,7 +103,7 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
         {
             logger.LogWarning(exception, "Retrying assigned journey backfill after a concurrent database update.");
             database.ChangeTracker.Clear();
-            return await GetAssignedAsync(cancellationToken, retryOnConcurrency: false);
+            return await GetAssignedUnderLockAsync(driverProfileId, cancellationToken, retryOnConcurrency: false);
         }
         catch (DbUpdateConcurrencyException exception)
         {
