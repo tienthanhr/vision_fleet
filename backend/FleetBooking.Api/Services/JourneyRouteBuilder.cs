@@ -20,17 +20,20 @@ public static class JourneyRouteBuilder
             .ToList();
         var stops = route.Stops.OrderBy(item => item.StopOrder).ToList();
         var isHomePickup = request.JourneyType == JourneyType.StudentHomePickup;
+        List<string> studentAddresses = isHomePickup
+            ? students.Select(item => CurrentAddress(item.Student) ?? string.Empty).ToList()
+            : [];
 
         if (stops.Count == 0)
         {
             if (isHomePickup)
             {
-                foreach (var requestStudent in students)
-                {
-                    var address = CurrentAddress(requestStudent.Student);
-                    if (string.IsNullOrWhiteSpace(address))
-                        return $"A current address is required for {requestStudent.Student?.User?.FullName ?? "each student"} before assigning this home-pickup journey.";
+                var missingAddressIndex = studentAddresses.FindIndex(string.IsNullOrWhiteSpace);
+                if (missingAddressIndex >= 0)
+                    return "A current address is required for every student before assigning this home-pickup journey.";
 
+                foreach (var address in studentAddresses)
+                {
                     if (!stops.Any(stop => SameAddress(stop.Address, address)))
                     {
                         var stop = new RouteStop
@@ -63,6 +66,9 @@ public static class JourneyRouteBuilder
         }
 
         var destinationStop = stops.FirstOrDefault(stop => SameAddress(stop.Address, request.Destination));
+        if (students.Count > 0 && destinationStop is not null && stops.Count == 1)
+            return "At least one pickup stop is required for the selected passengers.";
+
         if (destinationStop is null)
         {
             destinationStop = new RouteStop
@@ -92,7 +98,7 @@ public static class JourneyRouteBuilder
         for (var index = 0; index < students.Count; index++)
         {
             var requestStudent = students[index];
-            var address = CurrentAddress(requestStudent.Student);
+            var address = isHomePickup ? studentAddresses[index] : null;
             var stop = isHomePickup && !string.IsNullOrWhiteSpace(address)
                 ? pickupStops.FirstOrDefault(item => SameAddress(item.Address, address))
                     ?? (pickupStops.Count >= students.Count ? pickupStops[index] : pickupStops[0])

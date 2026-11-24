@@ -89,11 +89,16 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
             .ToList();
         if (routes.Count == 0) return Ok(Array.Empty<AssignedJourneyResponse>());
 
+        var setupWarnings = new Dictionary<Guid, string>();
         foreach (var route in routes)
         {
             var setupError = await JourneyRouteBuilder.EnsureStopsAndAttendanceAsync(
                 database, route, requestsById[route.RequestId], cancellationToken);
-            if (setupError is not null) return Conflict(setupError);
+            if (setupError is not null)
+            {
+                setupWarnings[route.Id] = setupError;
+                logger.LogWarning("Assigned journey {RouteId} needs administrator attention: {SetupWarning}", route.Id, setupError);
+            }
         }
         try
         {
@@ -159,7 +164,8 @@ public sealed class JourneyController(FleetDbContext database, ILogger<JourneyCo
                         stop.Address,
                         stop.PlannedArrival,
                         stop.ActualArrival,
-                        passengers.Where(passenger => passenger.RouteStopId == stop.Id))));
+                        passengers.Where(passenger => passenger.RouteStopId == stop.Id))),
+                    setupWarnings.GetValueOrDefault(route.Id));
             })
             .ToList();
         return Ok(response);
@@ -414,11 +420,12 @@ public sealed record AssignedJourneyResponse(
     TimeOnly PlannedStartTime,
     TimeOnly? PlannedEndTime,
     string? PickupLocation,
-    string Destination,
+    string? Destination,
     string Status,
     string? VanRegistration,
     string? VanName,
-    IEnumerable<DriverStopResponse> Stops);
+    IEnumerable<DriverStopResponse> Stops,
+    string? SetupWarning);
 public sealed record DriverStopResponse(
     Guid Id,
     int Order,

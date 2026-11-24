@@ -186,11 +186,12 @@ type DriverJourney = {
   plannedStartTime: string;
   plannedEndTime?: string | null;
   pickupLocation?: string | null;
-  destination: string;
+  destination: string | null;
   status: string;
   vanRegistration?: string | null;
   vanName?: string | null;
   stops: DriverRouteStop[];
+  setupWarning?: string | null;
 };
 
 const completedAttendanceStatuses = ["picked_up", "absent", "dropped_off"];
@@ -953,7 +954,7 @@ function DriverRoutePage({ journey, loading, error, savingAttendanceId, actionBu
   const progress = getDriverProgress(journey);
   const nextStopIndex = journey.stops.findIndex((stop) => !isDriverStopComplete(stop));
   const nextStop = journey.stops[nextStopIndex] ?? journey.stops[journey.stops.length - 1];
-  if (!nextStop) return <div className="empty-state"><h2>No route stops found</h2><p>Ask an administrator to review the route saved with this booking.</p></div>;
+  if (!nextStop) return <div className="empty-state"><h2>No route stops found</h2><p>{journey.setupWarning ?? "Ask an administrator to review the route saved with this booking."}</p></div>;
   const pendingPassengers = nextStop.passengers.filter((passenger) => passenger.status === "pending");
   return <>
     <PageTitle eyebrow={`ASSIGNED JOURNEY · ${journey.id.slice(0, 8).toUpperCase()}`} title={journey.title} subtitle={`${formatApiDate(journey.journeyDate)} · ${journey.vanRegistration ?? "Van not assigned"} · Departure ${formatApiTime(journey.plannedStartTime)}`} action={<Status>{driverJourneyStatus(journey.status)}</Status>} />
@@ -969,7 +970,7 @@ function DriverRoutePage({ journey, loading, error, savingAttendanceId, actionBu
             : <button type="button" disabled={actionBusy} onClick={() => onMarkArrival(journey.id, nextStop.id)}><Icon name="check" /> {actionBusy ? "Saving arrival..." : "Mark arrived"}</button>}
         </div>}
       </section>
-      <aside className="panel compact-stop-list"><div className="panel-head"><div><h2>Route stops</h2><p>{journey.stops.length} stops · {journey.destination}</p></div></div>{journey.stops.map((stop, index) => <div className={`compact-stop ${index === nextStopIndex ? "current" : ""}`} key={stop.id}><span>{stop.order}</span><div><strong>{stop.address}</strong><small>{formatApiTime(stop.plannedArrival)}{stop.passengers.length ? ` · ${stop.passengers.map((passenger) => passenger.name).join(", ")}` : ""}</small></div><Status>{driverStopStatus(stop)}</Status></div>)}</aside>
+      <aside className="panel compact-stop-list"><div className="panel-head"><div><h2>Route stops</h2><p>{journey.stops.length} stops · {journey.destination ?? "Destination not set"}</p></div></div>{journey.stops.map((stop, index) => <div className={`compact-stop ${index === nextStopIndex ? "current" : ""}`} key={stop.id}><span>{stop.order}</span><div><strong>{stop.address}</strong><small>{formatApiTime(stop.plannedArrival)}{stop.passengers.length ? ` · ${stop.passengers.map((passenger) => passenger.name).join(", ")}` : ""}</small></div><Status>{driverStopStatus(stop)}</Status></div>)}</aside>
     </div>
   </>;
 }
@@ -993,7 +994,7 @@ function DriverAssignedJourneys({ journeys, loading, error, onSelect, onRefresh 
             const passengerCount = journey.stops.reduce((total, stop) => total + stop.passengers.length, 0);
             return <article className="driver-journey-card" key={journey.id}>
               <div className="journey-time"><strong>{formatApiTime(journey.plannedStartTime)}</strong><span>{formatApiDate(journey.journeyDate)}</span></div>
-              <div className="driver-journey-copy"><strong>{journey.title}</strong><span><Icon name="location" size={14} /> {journey.pickupLocation ?? journey.stops[0]?.address ?? "Pickup not set"} → {journey.destination}</span><small>{passengerCount} passengers · {journey.vanRegistration ?? "Van not assigned"}{journey.vanName ? ` · ${journey.vanName}` : ""}</small></div>
+              <div className="driver-journey-copy"><strong>{journey.title}</strong><span><Icon name="location" size={14} /> {journey.pickupLocation ?? journey.stops[0]?.address ?? "Pickup not set"} → {journey.destination ?? "Destination not set"}</span><small>{passengerCount} passengers · {journey.vanRegistration ?? "Van not assigned"}{journey.vanName ? ` · ${journey.vanName}` : ""}</small>{journey.setupWarning && <p className="form-message error" role="alert">{journey.setupWarning}</p>}</div>
               <Status>{driverJourneyStatus(journey.status)}</Status>
               <button type="button" className="secondary-button" onClick={() => onSelect(journey.id)}>Open route <Icon name="arrow" size={16} /></button>
             </article>;
@@ -1012,7 +1013,8 @@ function DriverJourneyProgress({ journey, loading, error }: { journey: DriverJou
     {error && <p className="form-message error" role="alert">{error}</p>}
     <section className="panel journey-progress-panel">
       <div className="driver-progress-card"><div><span>ROUTE PROGRESS</span><strong>{progress.completed} of {progress.total} stops complete</strong></div><div className="progress-track"><i style={{ width: `${progress.percent}%` }} /></div><b>{progress.percent}%</b></div>
-      <div className="driver-progress-list">{journey.stops.map((stop, index) => <div className={`driver-progress-stop ${isDriverStopComplete(stop) ? "complete" : index === nextStopIndex ? "current" : ""}`} key={stop.id}><span className="progress-stop-marker">{isDriverStopComplete(stop) ? <Icon name="check" size={15} /> : stop.order}</span><div><strong>{stop.address}</strong><small>{stop.passengers.length ? stop.passengers.map((passenger) => `${passenger.name} · ${attendanceStatusLabel(passenger.status)}`).join(", ") : journey.destination}</small></div><span className="driver-stop-time">{formatApiTime(stop.plannedArrival)}</span><Status>{driverStopStatus(stop)}</Status></div>)}</div>
+      {journey.setupWarning && <p className="form-message error" role="alert">{journey.setupWarning}</p>}
+      <div className="driver-progress-list">{journey.stops.map((stop, index) => <div className={`driver-progress-stop ${isDriverStopComplete(stop) ? "complete" : index === nextStopIndex ? "current" : ""}`} key={stop.id}><span className="progress-stop-marker">{isDriverStopComplete(stop) ? <Icon name="check" size={15} /> : stop.order}</span><div><strong>{stop.address}</strong><small>{stop.passengers.length ? stop.passengers.map((passenger) => `${passenger.name} · ${attendanceStatusLabel(passenger.status)}`).join(", ") : journey.destination ?? "Destination not set"}</small></div><span className="driver-stop-time">{formatApiTime(stop.plannedArrival)}</span><Status>{driverStopStatus(stop)}</Status></div>)}</div>
     </section>
   </>;
 }
@@ -1031,7 +1033,7 @@ function DriverPassengerList({ journey, loading, error, setActive }: {
     {error && <p className="form-message error" role="alert">{error}</p>}
     <section className="panel driver-passengers-panel">
       {passengers.length === 0
-        ? <div className="empty-state"><h2>No passengers on this booking</h2><p>The assigned booking does not have any students recorded.</p></div>
+        ? <div className="empty-state"><h2>{journey.setupWarning ? "Passenger details need attention" : "No passengers on this booking"}</h2><p>{journey.setupWarning ?? "The assigned booking does not have any students recorded."}</p></div>
         : passengers.map(({ stop, ...passenger }) => <article className="driver-passenger-row" key={passenger.studentId}><div className="avatar">{passenger.name.split(" ").map((word) => word[0]).join("")}</div><div className="driver-passenger-copy"><strong>{passenger.name}</strong><span><Icon name="location" size={14} /> {stop.address}</span></div><div className="driver-passenger-pickup"><small>PLANNED STOP</small><strong>{formatApiTime(stop.plannedArrival)}</strong></div><Status>{attendanceStatusLabel(passenger.status)}</Status><button type="button" className="row-action" onClick={() => setActive("Passenger Attendance")}>Attendance <Icon name="arrow" size={15} /></button></article>)}
     </section>
   </>;
@@ -1123,13 +1125,13 @@ function DriverDashboard({ fullName, journey, journeys, loading, error, setActiv
           <div className="driver-current">
             <div className="driver-current-head"><div><span className="live-pulse" /><small>ASSIGNED JOURNEY · {journey.id.slice(0, 8).toUpperCase()}</small><h2>{journey.title}</h2><p>{formatApiDate(journey.journeyDate)} · {journey.vanRegistration ?? "Van not assigned"}{journey.vanName ? ` · ${journey.vanName}` : ""} · {journey.stops.length} stops</p></div><Status>{driverJourneyStatus(journey.status)}</Status></div>
             <div className="driver-route-progress"><div><span>{progress.completed}</span><small>STOPS COMPLETED</small></div><div className="progress-track"><i style={{ width: `${progress.percent}%` }} /></div><div><strong>{progress.percent}%</strong><small>ROUTE PROGRESS</small></div></div>
-            <div className="next-stop-card"><span className="next-label">{nextStopIndex < 0 ? "ROUTE STATUS" : "NEXT STOP"}</span><div className="student-avatar green">{nextStop.order}</div><div><h3>{nextStopIndex < 0 ? "Route complete" : nextStop.address}</h3><p><Icon name="location" size={14} /> {journey.destination}</p><span>{nextStopIndex < 0 ? "All stops completed" : <>Planned stop · <strong>{formatApiTime(nextStop.plannedArrival)}</strong></>}</span></div><div className="next-eta"><small>STATUS</small><strong>{driverStopStatus(nextStop)}</strong></div></div>
+            <div className="next-stop-card"><span className="next-label">{nextStopIndex < 0 ? "ROUTE STATUS" : "NEXT STOP"}</span><div className="student-avatar green">{nextStop.order}</div><div><h3>{nextStopIndex < 0 ? "Route complete" : nextStop.address}</h3><p><Icon name="location" size={14} /> {journey.destination ?? "Destination not set"}</p><span>{nextStopIndex < 0 ? "All stops completed" : <>Planned stop · <strong>{formatApiTime(nextStop.plannedArrival)}</strong></>}</span></div><div className="next-eta"><small>STATUS</small><strong>{driverStopStatus(nextStop)}</strong></div></div>
             <div className="driver-dashboard-actions"><a className="secondary-button driver-map-link" href={googleMapsUrl(nextStop.address)} target="_blank" rel="noopener noreferrer"><Icon name="location" /> Open map</a><a className="primary-button driver-map-link" href={googleMapsUrl(nextStop.address, true)} target="_blank" rel="noopener noreferrer"><Icon name="route" /> Navigate to next stop</a><button type="button" className="light-button" onClick={() => setActive("Complete Route")}><Icon name="route" /> Open route</button></div>
           </div>
           <div className="family-metrics driver-metrics"><MetricCard icon="route" value={String(journeys.length)} label="Assigned journeys" detail="From approved bookings" /><MetricCard icon="bus" value={journey.vanRegistration ?? "Unassigned"} label="Current van" detail={journey.vanName ?? "Assigned by administrator"} tone="green" /><MetricCard icon="users" value={String(remaining)} label="Students waiting" detail={`${pickedUp} picked up`} tone="purple" /></div>
-          <section className="panel"><div className="panel-head"><div><h2>Assigned bookings</h2><p>Loaded from bookings assigned to your driver account</p></div><button type="button" className="text-button" onClick={() => setActive("Assigned Journeys")}>View all</button></div>{journeys.map((item) => <div className="journey-row" key={item.id}><div className="journey-time"><strong>{formatApiTime(item.plannedStartTime)}</strong><span>{formatApiDate(item.journeyDate)}</span></div><div className="timeline-dot"><span /><i /></div><div><strong>{item.title}</strong><span><Icon name="location" size={14} /> {item.pickupLocation ?? item.stops[0]?.address ?? "Pickup not set"} → {item.destination}</span></div><div className="passenger-count"><Icon name="users" size={17} />{item.stops.reduce((count, stop) => count + stop.passengers.length, 0)}</div><Status>{driverJourneyStatus(item.status)}</Status><button type="button" className="row-action" onClick={() => onSelect(item.id)}>Details <Icon name="arrow" /></button></div>)}</section>
+          <section className="panel"><div className="panel-head"><div><h2>Assigned bookings</h2><p>Loaded from bookings assigned to your driver account</p></div><button type="button" className="text-button" onClick={() => setActive("Assigned Journeys")}>View all</button></div>{journeys.map((item) => <div className="journey-row" key={item.id}><div className="journey-time"><strong>{formatApiTime(item.plannedStartTime)}</strong><span>{formatApiDate(item.journeyDate)}</span></div><div className="timeline-dot"><span /><i /></div><div><strong>{item.title}</strong><span><Icon name="location" size={14} /> {item.pickupLocation ?? item.stops[0]?.address ?? "Pickup not set"} → {item.destination ?? "Destination not set"}</span></div><div className="passenger-count"><Icon name="users" size={17} />{item.stops.reduce((count, stop) => count + stop.passengers.length, 0)}</div><Status>{driverJourneyStatus(item.status)}</Status><button type="button" className="row-action" onClick={() => onSelect(item.id)}>Details <Icon name="arrow" /></button></div>)}</section>
         </>
-        : <section className="panel empty-state"><h2>No journeys assigned</h2><p>Once staff submit a booking and an administrator approves and assigns it to your driver account, it will appear here.</p><button type="button" className="secondary-button" onClick={() => setActive("Assigned Journeys")}>View assigned journeys</button></section>}
+        : <section className="panel empty-state"><h2>{journey ? "Assigned journey needs setup" : "No journeys assigned"}</h2><p>{journey?.setupWarning ?? "Once staff submit a booking and an administrator approves and assigns it to your driver account, it will appear here."}</p><button type="button" className="secondary-button" onClick={() => setActive("Assigned Journeys")}>View assigned journeys</button></section>}
   </>;
 }
 
